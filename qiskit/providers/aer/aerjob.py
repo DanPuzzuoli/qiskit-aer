@@ -51,11 +51,12 @@ class AerJob(BaseJob):
 
     _executor = futures.ThreadPoolExecutor(max_workers=1)
 
-    def __init__(self, backend, job_id, fn, qobj, *args):
+    def __init__(self, backend, job_id, fn, qobj, *args, **kwargs):
         super().__init__(backend, job_id)
         self._fn = fn
         self._qobj = qobj
         self._args = args
+        self._kwargs = kwargs
         self._future = None
 
     def submit(self):
@@ -71,7 +72,7 @@ class AerJob(BaseJob):
             raise JobError("We have already submitted the job!")
 
         self._future = self._executor.submit(self._fn, self._job_id, self._qobj,
-                                             *self._args)
+                                             *self._args, **self._kwargs)
 
     @requires_submit
     def result(self, timeout=None):

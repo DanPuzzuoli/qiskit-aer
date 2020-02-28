@@ -14,6 +14,7 @@
 Qiskit Aer qasm simulator backend.
 """
 
+import copy
 import json
 import logging
 import datetime
@@ -26,15 +27,16 @@ from qiskit.providers import BaseBackend
 from qiskit.providers.models import BackendStatus
 from qiskit.qobj import validate_qobj_against_schema
 from qiskit.result import Result
-from qiskit.util import local_hardware_info
 
-from ..aerjob import AerJob
+from qiskit.providers.aer.aerjob import AerJob
+from qiskit.providers.aer.aererror import AerError
+
 
 # Logger
 logger = logging.getLogger(__name__)
 
-# Location where we put external libraries that will be loaded at runtime
-# by the simulator extension
+# Location where we put external libraries that will be
+# loaded at runtime by the simulator extension
 LIBRARY_DIR = os.path.dirname(__file__)
 
 
@@ -62,7 +64,11 @@ class AerJSONEncoder(json.JSONEncoder):
 class AerBackend(BaseBackend):
     """Qiskit Aer Backend class."""
 
-    def __init__(self, controller, configuration, provider=None):
+    def __init__(self, configuration,
+                 available_methods=None,
+                 backend_options=None,
+                 controller=None,
+                 provider=None):
         """Aer class for backends.
 
         This method should initialize the module and its configuration, and
@@ -70,28 +76,73 @@ class AerBackend(BaseBackend):
         not available.
 
         Args:
-            controller (function): Aer controller to be executed
-            configuration (BackendConfiguration): backend configuration
-            provider (BaseProvider): provider responsible for this backend
+            configuration (BackendConfiguration): backend configuration.
+            available_methods (list or None): the available simulation methods if
+                                              backend is configurable.
+            provider (BaseProvider): provider responsible for this backend.
+            controller (function or None): Aer cython controller to be executed.
+            backend_options (dict or None): set the default backend options.
 
         Raises:
-            FileNotFoundError if backend executable is not available.
             AerError: if there is no name in the configuration
         """
-        super().__init__(configuration, provider=provider)
+        # Initialize backend configuration.
+        # The default configuration settings are stored in
+        # `self._default_configuration`, and any custom configured options
+        # are stored in `self._configuration`. The default values can be
+        # restored from the default configuration using `reset_options`
+        # method
+        self._default_configuration = configuration
+        super().__init__(copy.copy(self._default_configuration),
+                         provider=provider)
+
+        # Set Pybind11 C++ execution controller
         self._controller = controller
 
+        # Set available methods
+        if available_methods is None:
+            self._available_methods = []
+        else:
+            self._available_methods = available_methods
+
+        # Set custom configured options from backend_options dictionary
+        self._options = {}
+        if backend_options is not None:
+            for key, val in backend_options.items():
+                self._set_option(key, val)
+
+    @property
+    def options(self):
+        """Return the current simulator options"""
+        return self._options
+
+    def set_options(self, **backend_options):
+        """Set the simulator options"""
+        for key, val in backend_options.items():
+            self._set_option(key, val)
+
+    def reset_options(self):
+        """Reset the simulator options to default values."""
+        self._configuration = self._default_configuration.copy()
+        self._options = {}
+
+    def available_methods(self):
+        """Return the available simulation methods."""
+        return self._available_methods
+
     # pylint: disable=arguments-differ
-    def run(self, qobj, backend_options=None, noise_model=None, validate=False):
+    def run(self, qobj,
+            validate=True,
+            backend_options=None,
+            **run_options):
         """Run a qobj on the backend.
 
         Args:
             qobj (QasmQobj): The Qobj to be executed.
+            validate (bool): validate the Qobj before running (default: True).
             backend_options (dict or None): dictionary of backend options
                                             for the execution (default: None).
-            noise_model (NoiseModel or None): noise model to use for
-                                              simulation (default: None).
-            validate (bool): validate the Qobj before running (default: True).
+            run_options (kwargs): additional run time backend options.
 
         Returns:
             AerJob: The simulation job.
@@ -101,15 +152,47 @@ class AerBackend(BaseBackend):
               the ``Qobj.config`` dictionary with the values of entries in
               ``backend_options`` taking precedence.
 
-            * If present the ``noise_model`` will override any noise model
+            * If present any options specified in ``run_options`` will override options
               specified in the ``backend_options`` or ``Qobj.config``.
         """
         # Submit job
         job_id = str(uuid.uuid4())
         aer_job = AerJob(self, job_id, self._run_job, qobj,
-                         backend_options, noise_model, validate)
+                         validate, backend_options, **run_options)
         aer_job.submit()
         return aer_job
+
+    def run_direct(self, qobj,
+                   validate=True,
+                   backend_options=None,
+                   **run_options):
+        """Run a qobj on the backend.
+
+        This executes a qobj and returns a Result object without initializing
+        an async Job object.
+
+        Args:
+            qobj (QasmQobj): The Qobj to be executed.
+            validate (bool): validate the Qobj before running (default: True).
+            backend_options (dict or None): dictionary of backend options
+                                            for the execution (default: None).
+            run_options (kwargs): additional run time backend options.
+
+        Returns:
+            Result: The simulation result.
+
+        Additional Information:
+            * The entries in the ``backend_options`` will be combined with
+              the ``Qobj.config`` dictionary with the values of entries in
+              ``backend_options`` taking precedence.
+
+            * If present any options specified in ``run_options`` will override options
+              specified in the ``backend_options`` or ``Qobj.config``.
+        """
+        # Submit job
+        job_id = str(uuid.uuid4())
+        return self._run_job(job_id, qobj, validate,
+                             backend_options, **run_options)
 
     def status(self):
         """Return backend status.
@@ -123,73 +206,108 @@ class AerBackend(BaseBackend):
                              pending_jobs=0,
                              status_msg='')
 
-    def _run_job(self, job_id, qobj, backend_options, noise_model, validate):
-        """Run a qobj job"""
+    def _run_job(self, job_id, qobj, validate, backend_options, **kwargs):
+        """Run a job"""
+        # Start timer
         start = time.time()
+        run_config = self._run_config(backend_options, **kwargs)
+
+        # Optional validation
         if validate:
             validate_qobj_against_schema(qobj)
-            self._validate(qobj, backend_options, noise_model)
-        output = self._controller(self._format_qobj(qobj, backend_options, noise_model))
-        end = time.time()
-        return Result.from_dict(self._format_results(job_id, output, end - start))
+            self._validate(qobj, run_config)
 
-    def _format_qobj(self, qobj, backend_options, noise_model):
-        """Format qobj string for qiskit aer controller"""
-        # Convert qobj to dict so as to avoid editing original
-        output = qobj.to_dict()
-        # Add new parameters to config from backend options
-        config = output["config"]
-        if backend_options is not None:
-            for key, val in backend_options.items():
-                config[key] = val if not hasattr(val, 'to_dict') else val.to_dict()
-        # Add noise model to config
-        if noise_model is not None:
-            config["noise_model"] = noise_model
+        # Run simulation
+        output = self._execute(qobj, run_config)
 
-        # Add runtime config
-        if 'library_dir' not in config:
-            config['library_dir'] = LIBRARY_DIR
-        if "max_memory_mb" not in config:
-            max_memory_mb = int(local_hardware_info()['memory'] * 1024 / 2)
-            config['max_memory_mb'] = max_memory_mb
+        # Validate output
+        if not isinstance(output, dict):
+            logger.error("%s: simulation failed.", self.name())
+            if output:
+                logger.error('Output: %s', output)
+            raise AerError("simulation terminated without returning valid output.")
 
-        self._validate_config(config)
-        # Return output
-        return output
-
-    def _validate_config(self, config):
-        # sanity checks on config- should be removed upon fixing of assemble w.r.t. backend_options
-        if 'backend_options' in config:
-            if isinstance(config['backend_options'], dict):
-                for key, val in config['backend_options'].items():
-                    if hasattr(val, 'to_dict'):
-                        config['backend_options'][key] = val.to_dict()
-            elif not isinstance(config['backend_options'], list):
-                raise ValueError("config[backend_options] must be a dict or list!")
-        # Double-check noise_model is a dict type
-        if 'noise_model' in config and not isinstance(config["noise_model"], dict):
-            if hasattr(config["noise_model"], 'to_dict'):
-                config["noise_model"] = config["noise_model"].to_dict()
-            else:
-                raise ValueError("noise_model must be a dict : " + str(type(config["noise_model"])))
-
-    def _format_results(self, job_id, output, time_taken):
-        """Construct Result object from simulator output."""
+        # Format results
         output["job_id"] = job_id
         output["date"] = datetime.datetime.now().isoformat()
         output["backend_name"] = self.name()
         output["backend_version"] = self.configuration().backend_version
-        output["time_taken"] = time_taken
-        return output
 
-    def _validate(self, qobj, backend_options, noise_model):
-        """Validate the qobj, backend_options, noise_model for the backend"""
+        # Add execution time
+        output["time_taken"] = time.time() - start
+
+        # Return results
+        return Result.from_dict(output)
+
+    def _set_option(self, key, value):
+        """Special handling for setting backend options.
+
+        This method should be extended by sub classes to
+        update special option values.
+
+        Args:
+            key (str): key to update
+            value (any): value to update.
+
+        Raises:
+            AerError: if key is 'method' and val isn't in available methods.
+        """
+        # If they key basis gates or coupling map we update the config
+        if key == 'backend_name':
+            self._configuration.backend_name = value
+            return
+        if key == 'basis_gates':
+            self._configuration.basis_gates = value
+            return
+        if key == 'couling_map':
+            self._configuration.coupling_map = value
+            return
+
+        # If key is method, we validate it is one of the available methods
+        if key == 'method' and value not in self._available_methods:
+            raise AerError("Invalid simulation method {}. Availalbe methods"
+                           " are: {}".format(value, self._available_methods))
+        # Add to options dict
+        self._options[key] = value
+
+    def _execute(self, qobj, run_config):
+        """Run the controller"""
+        # Add sim config to qobj
+        controller_input = qobj.to_dict()
+        for key, val in run_config.items():
+            if hasattr(val, 'to_dict'):
+                controller_input['config'][key] = val.to_dict()
+            else:
+                controller_input['config'][key] = val
+        # Execute on controller
+        return self._controller(controller_input)
+
+    def _run_config(self, backend_options, **kwargs):
+        """Return execution sim config dict from backend options."""
+        # Get sim config
+        run_config = self._options.copy()
+
+        # Location where we put external libraries that will be
+        # loaded at runtime by the simulator extension
+        run_config['library_dir'] = LIBRARY_DIR
+
+        # Override with run-time options
+        if backend_options is not None:
+            for key, val in backend_options.items():
+                run_config[key] = val
+        for key, val in kwargs.items():
+            run_config[key] = val
+        return run_config
+
+    def _validate(self, qobj, options):
+        """Validate the qobj and backend_options for the backend"""
         pass
 
     def __repr__(self):
-        """Official string representation of an AerBackend."""
-        display = "{}('{}')".format(self.__class__.__name__, self.name())
-        provider = self.provider()
-        if provider is not None:
-            display = display + " from {}()".format(provider)
-        return "<" + display + ">"
+        """String representation of an AerBackend."""
+        display = "backend_name='{}'".format(self.name())
+        if self.provider():
+            display += ', provider={}()'.format(self.provider())
+        for key, val in self.options.items():
+            display += ',\n    {}={}'.format(key, repr(val))
+        return '{}(\n{})'.format(self.__class__.__name__, display)

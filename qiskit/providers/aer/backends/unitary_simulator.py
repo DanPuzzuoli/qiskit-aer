@@ -17,18 +17,56 @@ Qiskit Aer Unitary Simulator Backend.
 """
 
 import logging
-from math import log2, sqrt
 from qiskit.util import local_hardware_info
 from qiskit.providers.models import QasmBackendConfiguration
 
-from .aerbackend import AerBackend
-from ..aererror import AerError
-# pylint: disable=import-error
-from .controller_wrappers import unitary_controller_execute
-from ..version import __version__
+from qiskit.providers.aer.backends.aerbackend import AerBackend
+from qiskit.providers.aer.backends.backend_utils import (backend_gates,
+                                                         available_methods,
+                                                         MAX_QUBITS_STATEVECTOR)
+from qiskit.providers.aer.aererror import AerError
+from qiskit.providers.aer.version import __version__
+# pylint: disable=import-error, no-name-in-module
+from qiskit.providers.aer.backends.controller_wrappers import unitary_controller_execute
 
 # Logger
 logger = logging.getLogger(__name__)
+
+AVAILABLE_METHODS = available_methods(
+    unitary_controller_execute, [
+        'automatic',
+        'unitary',
+        'unitary_gpu',
+        'unitary_thrust'
+    ])
+
+BASIS_GATES = [
+    'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg',
+    't', 'tdg', 'swap', 'ccx', 'unitary', 'cu1', 'cu2',
+    'cu3', 'cswap', 'mcx', 'mcy', 'mcz', 'mcu1', 'mcu2', 'mcu3',
+    'mcswap', 'multiplexer',
+]
+
+DEFAULT_CONFIGURATION = {
+    'backend_name': 'unitary_simulator',
+    'backend_version': __version__,
+    'n_qubits': MAX_QUBITS_STATEVECTOR // 2,
+    'url': 'https://github.com/Qiskit/qiskit-aer',
+    'simulator': True,
+    'local': True,
+    'conditional': False,
+    'open_pulse': False,
+    'memory': False,
+    'max_shots': int(1e6),  # Note that this backend will only ever
+                            # perform a single shot. This value is just
+                            # so that the default shot value for execute
+                            # will not raise an error when trying to run
+                            # a simulation
+    'description': 'A C++ unitary simulator for QASM Qobj files',
+    'coupling_map': None,
+    'basis_gates': BASIS_GATES,
+    'gates': backend_gates(BASIS_GATES)
+}
 
 
 class UnitarySimulator(AerBackend):
@@ -75,228 +113,16 @@ class UnitarySimulator(AerBackend):
       performance (Default: 14).
     """
 
-    MAX_QUBIT_MEMORY = int(log2(sqrt(local_hardware_info()['memory'] * (1024 ** 3) / 16)))
+    def __init__(self,
+                 provider=None,
+                 **backend_options):
+        super().__init__(QasmBackendConfiguration.from_dict(DEFAULT_CONFIGURATION),
+                         available_methods=AVAILABLE_METHODS,
+                         provider=provider,
+                         controller=unitary_controller_execute,
+                         backend_options=backend_options)
 
-    DEFAULT_CONFIGURATION = {
-        'backend_name': 'unitary_simulator',
-        'backend_version': __version__,
-        'n_qubits': MAX_QUBIT_MEMORY,
-        'url': 'https://github.com/Qiskit/qiskit-aer',
-        'simulator': True,
-        'local': True,
-        'conditional': False,
-        'open_pulse': False,
-        'memory': False,
-        'max_shots': int(1e6),  # Note that this backend will only ever
-                                # perform a single shot. This value is just
-                                # so that the default shot value for execute
-                                # will not raise an error when trying to run
-                                # a simulation
-        'description': 'A C++ unitary simulator for QASM Qobj files',
-        'coupling_map': None,
-        'basis_gates': [
-            'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg',
-            't', 'tdg', 'swap', 'ccx', 'unitary', 'diagonal', 'cu1', 'cu2',
-            'cu3', 'cswap', 'mcx', 'mcy', 'mcz', 'mcu1', 'mcu2', 'mcu3',
-            'mcswap', 'multiplexer',
-        ],
-        'gates': [{
-            'name': 'u1',
-            'parameters': ['lam'],
-            'conditional': True,
-            'description': 'Single-qubit gate [[1, 0], [0, exp(1j*lam)]]',
-            'qasm_def': 'gate u1(lam) q { U(0,0,lam) q; }'
-        }, {
-            'name': 'u2',
-            'parameters': ['phi', 'lam'],
-            'conditional': True,
-            'description':
-            'Single-qubit gate [[1, -exp(1j*lam)], [exp(1j*phi), exp(1j*(phi+lam))]]/sqrt(2)',
-            'qasm_def': 'gate u2(phi,lam) q { U(pi/2,phi,lam) q; }'
-        }, {
-            'name':
-            'u3',
-            'parameters': ['theta', 'phi', 'lam'],
-            'conditional':
-            True,
-            'description':
-            'Single-qubit gate with three rotation angles',
-            'qasm_def':
-            'gate u3(theta,phi,lam) q { U(theta,phi,lam) q; }'
-        }, {
-            'name': 'cx',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-NOT gate',
-            'qasm_def': 'gate cx c,t { CX c,t; }'
-        }, {
-            'name': 'cz',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-Z gate',
-            'qasm_def': 'gate cz a,b { h b; cx a,b; h b; }'
-        }, {
-            'name': 'id',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit identity gate',
-            'qasm_def': 'gate id a { U(0,0,0) a; }'
-        }, {
-            'name': 'x',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit Pauli-X gate',
-            'qasm_def': 'gate x a { U(pi,0,pi) a; }'
-        }, {
-            'name': 'y',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit Pauli-Y gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'z',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit Pauli-Z gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'h',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit Hadamard gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 's',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit phase gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'sdg',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit adjoint phase gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 't',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit T gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'tdg',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit adjoint T gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'swap',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Two-qubit SWAP gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'ccx',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Three-qubit Toffoli gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'cswap',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Three-qubit Fredkin (controlled-SWAP) gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'unitary',
-            'parameters': ['matrix'],
-            'conditional': True,
-            'description': 'N-qubit arbitrary unitary gate. '
-                           'The parameter is the N-qubit matrix to apply.',
-            'qasm_def': 'unitary(matrix) q1, q2,...'
-        }, {
-            'name': 'diagonal',
-            'parameters': ['diag_elements'],
-            'conditional': True,
-            'description': 'N-qubit diagonal unitary gate. The parameters are the'
-                           ' diagonal entries of the N-qubit matrix to apply.',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'cu1',
-            'parameters': ['lam'],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-u1 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'cu2',
-            'parameters': ['phi', 'lam'],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-u2 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'cu3',
-            'parameters': ['theta', 'phi', 'lam'],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-u3 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcx',
-            'parameters': [],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-X gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcy',
-            'parameters': [],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-Y gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcz',
-            'parameters': [],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-Z gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcu1',
-            'parameters': ['lam'],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-u1 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcu2',
-            'parameters': ['phi', 'lam'],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-u2 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcu3',
-            'parameters': ['theta', 'phi', 'lam'],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-u3 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcswap',
-            'parameters': [],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-SWAP gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'multiplexer',
-            'parameters': ['mat1', 'mat2', '...'],
-            'conditional': True,
-            'description': 'N-qubit multi-plexer gate. '
-                           'The input parameters are the gates for each value.',
-            'qasm_def': 'TODO'
-        }]
-    }
-
-    def __init__(self, configuration=None, provider=None):
-        super().__init__(unitary_controller_execute,
-                         QasmBackendConfiguration.from_dict(self.DEFAULT_CONFIGURATION),
-                         provider=provider)
-
-    def _validate(self, qobj, backend_options, noise_model):
+    def _validate(self, qobj, options):
         """Semantic validations of the qobj which cannot be done via schemas.
         Some of these may later move to backend schemas.
         1. Set shots=1
@@ -304,7 +130,7 @@ class UnitarySimulator(AerBackend):
         3. Check number of qubits will fit in local memory.
         """
         name = self.name()
-        if noise_model is not None:
+        if options and 'noise_model' in options:
             raise AerError("{} does not support noise.".format(name))
 
         n_qubits = qobj.config.n_qubits

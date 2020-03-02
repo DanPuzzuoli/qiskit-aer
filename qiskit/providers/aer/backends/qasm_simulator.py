@@ -15,15 +15,32 @@ Qiskit Aer qasm simulator backend.
 """
 
 import logging
-from math import log2
-from qiskit.util import local_hardware_info
 from qiskit.providers.models import QasmBackendConfiguration
-from .aerbackend import AerBackend
-# pylint: disable=import-error
-from .controller_wrappers import qasm_controller_execute
-from ..version import __version__
+from qiskit.providers.aer.backends.aerbackend import AerBackend
+from qiskit.providers.aer.backends.backend_utils import (backend_gates,
+                                                         available_methods,
+                                                         MAX_QUBITS_STATEVECTOR)
+from qiskit.providers.aer.noise.noise_model import NoiseModel
+from qiskit.providers.aer.version import __version__
+# pylint: disable=import-error, no-name-in-module
+from qiskit.providers.aer.backends.controller_wrappers import qasm_controller_execute
+
 
 logger = logging.getLogger(__name__)
+
+AVAILABLE_METHODS = available_methods(
+    qasm_controller_execute, [
+        'automatic',
+        'statevector',
+        'statevector_gpu',
+        'statevector_thrust',
+        'density_matrix',
+        'density_matrix_gpu',
+        'density_matrix_thrust',
+        'stabilizer',
+        'matrix_product_state',
+        'extended_stabilizer'
+    ])
 
 
 class QasmSimulator(AerBackend):
@@ -230,247 +247,107 @@ class QasmSimulator(AerBackend):
 
     """
 
-    MAX_QUBIT_MEMORY = int(
-        log2(local_hardware_info()['memory'] * (1024**3) / 16))
+    def __init__(self,
+                 provider=None,
+                 **backend_options):
+        super().__init__(self._method_configuration(),
+                         available_methods=AVAILABLE_METHODS,
+                         provider=provider,
+                         controller=qasm_controller_execute,
+                         backend_options=backend_options)
 
-    DEFAULT_CONFIGURATION = {
-        'backend_name': 'qasm_simulator',
-        'backend_version': __version__,
-        'n_qubits': MAX_QUBIT_MEMORY,
-        'url': 'https://github.com/Qiskit/qiskit-aer',
-        'simulator': True,
-        'local': True,
-        'conditional': True,
-        'open_pulse': False,
-        'memory': True,
-        'max_shots': int(1e6),
-        'description': 'A C++ simulator with realistic noise for QASM Qobj files',
-        'coupling_map': None,
-        'basis_gates': [
-            'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg',
-            't', 'tdg', 'swap', 'ccx', 'unitary', 'diagonal', 'initialize',
-            'cu1', 'cu2', 'cu3', 'cswap', 'mcx', 'mcy', 'mcz',
-            'mcu1', 'mcu2', 'mcu3', 'mcswap', 'multiplexer', 'kraus', 'roerror'
-        ],
-        'gates': [{
-            'name': 'u1',
-            'parameters': ['lam'],
-            'conditional': True,
-            'description': 'Single-qubit gate [[1, 0], [0, exp(1j*lam)]]',
-            'qasm_def': 'gate u1(lam) q { U(0,0,lam) q; }'
-        }, {
-            'name': 'u2',
-            'parameters': ['phi', 'lam'],
-            'conditional': True,
-            'description':
-            'Single-qubit gate [[1, -exp(1j*lam)], [exp(1j*phi), exp(1j*(phi+lam))]]/sqrt(2)',
-            'qasm_def': 'gate u2(phi,lam) q { U(pi/2,phi,lam) q; }'
-        }, {
-            'name':
-            'u3',
-            'parameters': ['theta', 'phi', 'lam'],
-            'conditional':
-            True,
-            'description':
-            'Single-qubit gate with three rotation angles',
-            'qasm_def':
-            'gate u3(theta,phi,lam) q { U(theta,phi,lam) q; }'
-        }, {
-            'name': 'cx',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-NOT gate',
-            'qasm_def': 'gate cx c,t { CX c,t; }'
-        }, {
-            'name': 'cz',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-Z gate',
-            'qasm_def': 'gate cz a,b { h b; cx a,b; h b; }'
-        }, {
-            'name': 'id',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit identity gate',
-            'qasm_def': 'gate id a { U(0,0,0) a; }'
-        }, {
-            'name': 'x',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit Pauli-X gate',
-            'qasm_def': 'gate x a { U(pi,0,pi) a; }'
-        }, {
-            'name': 'y',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit Pauli-Y gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'z',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit Pauli-Z gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'h',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit Hadamard gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 's',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit phase gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'sdg',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit adjoint phase gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 't',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit T gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'tdg',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Single-qubit adjoint T gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'swap',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Two-qubit SWAP gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'ccx',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Three-qubit Toffoli gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'cswap',
-            'parameters': [],
-            'conditional': True,
-            'description': 'Three-qubit Fredkin (controlled-SWAP) gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'unitary',
-            'parameters': ['matrix'],
-            'conditional': True,
-            'description': 'N-qubit unitary gate. '
-                           'The parameter is the N-qubit matrix to apply.',
-            'qasm_def': 'unitary(matrix) q1, q2,...'
-        }, {
-            'name': 'diagonal',
-            'parameters': ['diag_elements'],
-            'conditional': True,
-            'description': 'N-qubit diagonal unitary gate. The parameters are the'
-                           ' diagonal entries of the N-qubit matrix to apply.',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'initialize',
-            'parameters': ['vector'],
-            'conditional': False,
-            'description': 'N-qubit state initialize. '
-                           'Resets qubits then sets statevector to the parameter vector.',
-            'qasm_def': 'initialize(vector) q1, q2,...'
-        }, {
-            'name': 'cu1',
-            'parameters': ['lam'],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-u1 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'cu2',
-            'parameters': ['phi', 'lam'],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-u2 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'cu3',
-            'parameters': ['theta', 'phi', 'lam'],
-            'conditional': True,
-            'description': 'Two-qubit Controlled-u3 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcx',
-            'parameters': [],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-X gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcy',
-            'parameters': [],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-Y gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcz',
-            'parameters': [],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-Z gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcu1',
-            'parameters': ['lam'],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-u1 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcu2',
-            'parameters': ['phi', 'lam'],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-u2 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcu3',
-            'parameters': ['theta', 'phi', 'lam'],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-u3 gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'mcswap',
-            'parameters': [],
-            'conditional': True,
-            'description': 'N-qubit multi-controlled-SWAP gate',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'multiplexer',
-            'parameters': ['mat1', 'mat2', '...'],
-            'conditional': True,
-            'description': 'N-qubit multi-plexer gate. '
-                           'The input parameters are the gates for each value.',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'kraus',
-            'parameters': ['mat1', 'mat2', '...'],
-            'conditional': True,
-            'description': 'N-qubit Kraus error instruction. '
-                           'The input parameters are the Kraus matrices.',
-            'qasm_def': 'TODO'
-        }, {
-            'name': 'roerror',
-            'parameters': ['matrix'],
-            'conditional': False,
-            'description': 'N-bit classical readout error instruction. '
-                           'The input parameter is the readout error probability matrix.',
-            'qasm_def': 'TODO'
-        }]
-    }
+    # pylint: disable=arguments-differ
+    def run(self, qobj,
+            validate=True,
+            backend_options=None,
+            noise_model=None,
+            **kwargs):
+        """Run a qobj on the backend.
 
-    def __init__(self, configuration=None, provider=None):
-        super().__init__(
-            qasm_controller_execute,
-            QasmBackendConfiguration.from_dict(self.DEFAULT_CONFIGURATION),
-            provider=provider)
+        Args:
+            qobj (QasmQobj): The Qobj to be executed.
+            validate (bool): validate the Qobj before running (default: True).
+            backend_options (dict or None): dictionary of backend options
+                                            for the execution (default: None).
+            noise_model (NoiseModel or None): noise model for simulation
+                                              (default: None).
+            kwargs (any): optional additional backend options.
 
-    def _validate(self, qobj, backend_options, noise_model):
+        Returns:
+            AerJob: The simulation job.
+
+        Additional Information:
+            * The entries in the ``backend_options`` will be combined with
+              the ``Qobj.config`` dictionary with the values of entries in
+              ``backend_options`` taking precedence.
+
+            * If present any options specified in ``kwargs`` will override options
+              specified in the ``backend_options`` or ``Qobj.config``.
+        """
+        if noise_model is not None:
+            kwargs['noise_model'] = noise_model
+        return super().run(qobj,
+                           validate=validate,
+                           backend_options=backend_options,
+                           **kwargs)
+
+    @classmethod
+    def from_backend(cls, backend, **options):
+        """Initialize simulator from backend."""
+        configuration = backend.configuration()
+        basis_gates = configuration.basis_gates
+        coupling_map = configuration.coupling_map
+        n_qubits = configuration.n_qubits
+        backend_name = 'qasm_simulator({})'.format(configuration.backend_name)
+        noise_model = NoiseModel.from_backend(backend)
+        if noise_model.is_ideal():
+            # Don't include noise model
+            noise_model = None
+        else:
+            basis_gates = list(set(basis_gates +
+                                   noise_model.basis_gates))
+        sim = cls(noise_model=noise_model,
+                  basis_gates=basis_gates,
+                  coupling_map=coupling_map,
+                  n_qubits=n_qubits,
+                  backend_name=backend_name,
+                  **options)
+        return sim
+
+    def _set_option(self, key, value):
+        """Set the simulation method and update configuration.
+
+        Args:
+            key (str): key to update
+            value (any): value to update.
+
+        Raises:
+            AerError: if key is 'method' and val isn't in available methods.
+        """
+        # If key is noise_model we also change the simulator config
+        # to use the noise_model basis gates by default.
+        if key == 'noise_model':
+            self._configuration.basis_gates = value.basis_gates
+            self._configuration.gates = backend_gates(value.basis_gates)
+
+        # If key is method we update our configurations
+        if key == 'method':
+            method_config = self._method_configuration(value)
+            self._configuration.description = method_config.description
+            self._configuration.backend_name = method_config.backend_name
+            self._configuration.n_qubits = method_config.n_qubits
+            # Take intersection of method basis gates and noise model basis gates
+            # if there is a noise model which has already set the basis gates
+            basis_gates = method_config.basis_gates
+            if 'noise_model' in self.options:
+                noise_basis_gates = self.options['noise_model'].basis_gates
+                basis_gates = list(set(basis_gates).intersection(noise_basis_gates))
+            self._configuration.basis_gates = basis_gates
+            self._configuration.gates = method_config.gates
+        # Use AerBackend
+        super()._set_option(key, value)
+
+    def _validate(self, qobj, options):
         """Semantic validations of the qobj which cannot be done via schemas.
 
         Warn if no measurements in circuit with classical registers.
@@ -492,3 +369,71 @@ class QasmSimulator(AerBackend):
                         'No measurements in circuit "%s": '
                         'count data will return all zeros.',
                         experiment.header.name)
+
+    @staticmethod
+    def _method_configuration(method=None):
+        """Return QasmBackendConfiguration."""
+        # Default configuration
+        config = {
+            'backend_name': 'qasm_simulator',
+            'backend_version': __version__,
+            'n_qubits': MAX_QUBITS_STATEVECTOR,
+            'url': 'https://github.com/Qiskit/qiskit-aer',
+            'simulator': True,
+            'local': True,
+            'conditional': True,
+            'open_pulse': False,
+            'memory': True,
+            'max_shots': int(1e6),
+            'description': 'A C++ QasmQobj simulator with noise',
+            'coupling_map': None,
+            'basis_gates': [
+                'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg',
+                't', 'tdg', 'swap', 'ccx', 'unitary', 'initialize', 'cu1', 'cu2',
+                'cu3', 'cswap', 'mcx', 'mcy', 'mcz', 'mcu1', 'mcu2', 'mcu3',
+                'mcswap', 'multiplexer', 'kraus', 'roerror'
+            ]
+        }
+
+        # Statvector methods
+        if method in ['statevector', 'statevector_gpu', 'statevector_thrust']:
+            config['description'] = 'A C++ QasmQobj statevector simulator with noise'
+
+        # Density Matrix methods
+        elif method in ['density_matrix', 'density_matrix_gpu', 'density_matrix_thrust']:
+            config['n_qubits'] = config['n_qubits'] // 2
+            config['description'] = 'A C++ QasmQobj density matrix simulator with noise'
+            config['basis_gates'] = [
+                'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg',
+                't', 'tdg', 'swap', 'ccx', 'unitary',
+                'kraus', 'roerror'
+            ]
+
+        # Matrix product state method
+        elif method == 'matrix_product_state':
+            config['description'] = 'A C++ QasmQobj matrix product state simulator with noise'
+            config['basis_gates'] = [
+                'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg',
+                't', 'tdg', 'swap', 'ccx', 'unitary', 'roerror'
+            ]
+
+        # Stabilizer method
+        elif method == 'stabilizer':
+            config['n_qubits'] = 5000  # TODO: estimate from memory
+            config['description'] = 'A C++ QasmQobj Clifford stabilizer simulator with noise'
+            config['basis_gates'] = [
+                'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg', 'swap', 'roerror'
+            ]
+
+        # Extended stabilizer method
+        elif method == 'extended_stabilizer':
+            config['n_qubits'] = 63  # TODO: estimate from memory
+            config['description'] = 'A C++ QasmQobj ranked stabilizer simulator with noise'
+            config['basis_gates'] = [
+                'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg', 'swap', 'roerror',
+                'u0', 'u1', 'ccx', 'ccz',
+            ]
+
+        # Update gates description from basis_gates list
+        config['gates'] = backend_gates(config['basis_gates'])
+        return QasmBackendConfiguration.from_dict(config)

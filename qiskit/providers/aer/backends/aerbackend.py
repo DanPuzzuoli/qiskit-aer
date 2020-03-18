@@ -21,6 +21,7 @@ import datetime
 import os
 import time
 import uuid
+import warnings
 from numpy import ndarray
 
 from qiskit.providers import BaseBackend
@@ -133,14 +134,14 @@ class AerBackend(BaseBackend):
     # pylint: disable=arguments-differ
     def run(self, qobj,
             validate=True,
-            backend_options=None,
+            backend_options=None,  # DEPRECATED
             **run_options):
         """Run a qobj on the backend.
 
         Args:
             qobj (QasmQobj): The Qobj to be executed.
             validate (bool): validate the Qobj before running (default: True).
-            backend_options (dict or None): dictionary of backend options
+            backend_options (dict or None): DEPRECATED dictionary of backend options
                                             for the execution (default: None).
             run_options (kwargs): additional run time backend options.
 
@@ -148,24 +149,32 @@ class AerBackend(BaseBackend):
             AerJob: The simulation job.
 
         Additional Information:
+            * kwarg options specified in ``run_options`` will override options
+              of the same kwarg specified in the simulator options, the
+              ``backend_options`` and the ``Qobj.config``.
+
             * The entries in the ``backend_options`` will be combined with
               the ``Qobj.config`` dictionary with the values of entries in
-              ``backend_options`` taking precedence.
-
-            * If present any options specified in ``run_options`` will override options
-              specified in the ``backend_options`` or ``Qobj.config``.
+              ``backend_options`` taking precedence. This kwarg is deprecated
+              and direct kwarg's should be used for options to pass them to
+              ``run_options``.
         """
+        # DEPRECATED
+        if backend_options is not None:
+            warnings.warn(
+                'Using `backend_options` kwarg has been deprecated as of'
+                ' qiskit-aer 0.5.0 and will be removed no earlier than 3'
+                ' months from that release date. Runtime backend options'
+                ' should now be added directly using kwargs for each option.',
+                DeprecationWarning, stacklevel=3)
         # Submit job
         job_id = str(uuid.uuid4())
-        aer_job = AerJob(self, job_id, self._run_job, qobj,
-                         validate, backend_options, **run_options)
+        aer_job = AerJob(self, job_id, self._run_job, qobj, validate,
+                         backend_options=backend_options, **run_options)
         aer_job.submit()
         return aer_job
 
-    def run_direct(self, qobj,
-                   validate=True,
-                   backend_options=None,
-                   **run_options):
+    def run_direct(self, qobj, validate=True, **run_options):
         """Run a qobj on the backend.
 
         This executes a qobj and returns a Result object without initializing
@@ -174,25 +183,19 @@ class AerBackend(BaseBackend):
         Args:
             qobj (QasmQobj): The Qobj to be executed.
             validate (bool): validate the Qobj before running (default: True).
-            backend_options (dict or None): dictionary of backend options
-                                            for the execution (default: None).
             run_options (kwargs): additional run time backend options.
 
         Returns:
             Result: The simulation result.
 
         Additional Information:
-            * The entries in the ``backend_options`` will be combined with
-              the ``Qobj.config`` dictionary with the values of entries in
-              ``backend_options`` taking precedence.
-
-            * If present any options specified in ``run_options`` will override options
-              specified in the ``backend_options`` or ``Qobj.config``.
+            * kwarg options specified in ``run_options`` will override options
+              of the same kwarg specified in the simulator options, the
+              ``backend_options`` and the ``Qobj.config``.
         """
         # Submit job
         job_id = str(uuid.uuid4())
-        return self._run_job(job_id, qobj, validate,
-                             backend_options, **run_options)
+        return self._run_job(job_id, qobj, validate, **run_options)
 
     def status(self):
         """Return backend status.
@@ -206,11 +209,14 @@ class AerBackend(BaseBackend):
                              pending_jobs=0,
                              status_msg='')
 
-    def _run_job(self, job_id, qobj, validate, backend_options, **kwargs):
+    def _run_job(self, job_id, qobj, validate,
+                 backend_options=None,  # DEPRECATED
+                 **run_options):
         """Run a job"""
         # Start timer
         start = time.time()
-        run_config = self._run_config(backend_options, **kwargs)
+        run_config = self._run_config(
+            backend_options=backend_options, **run_options)
 
         # Optional validation
         if validate:
@@ -282,7 +288,9 @@ class AerBackend(BaseBackend):
         # Execute on controller
         return self._controller(controller_input)
 
-    def _run_config(self, backend_options, **kwargs):
+    def _run_config(self,
+                    backend_options=None,  # DEPRECATED
+                    **run_options):
         """Return execution sim config dict from backend options."""
         # Get sim config
         run_config = self._options.copy()
@@ -295,7 +303,7 @@ class AerBackend(BaseBackend):
         if backend_options is not None:
             for key, val in backend_options.items():
                 run_config[key] = val
-        for key, val in kwargs.items():
+        for key, val in run_options.items():
             run_config[key] = val
         return run_config
 

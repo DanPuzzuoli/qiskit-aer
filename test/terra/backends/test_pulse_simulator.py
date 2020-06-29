@@ -27,8 +27,8 @@ from qiskit.providers.aer.backends import PulseSimulator
 
 from qiskit.compiler import assemble
 from qiskit.quantum_info import state_fidelity
-from qiskit.pulse import (Schedule, Play, ShiftPhase, Delay, Acquire, SamplePulse, DriveChannel,
-                          ControlChannel, AcquireChannel, MemorySlot)
+from qiskit.pulse import (Schedule, Play, ShiftPhase, SetPhase, Delay, Acquire, SamplePulse,
+                          DriveChannel, ControlChannel, AcquireChannel, MemorySlot)
 from qiskit.providers.aer.pulse.de.DE_Methods import ScipyODE
 from qiskit.providers.aer.pulse.de.DE_Options import DE_Options
 from qiskit.providers.aer.pulse.system_models.pulse_system_model import PulseSystemModel
@@ -960,7 +960,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
     def test_shift_phase(self):
         """Test ShiftPhase command."""
 
-        omega_0 = 0
+        omega_0 = 1.123
         r = 1.
 
         system_model = self._system_model_1Q(omega_0, r)
@@ -1032,9 +1032,60 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         #run independent simulation
         samples = np.array([[amp1], [amp2 * np.exp(1j * phi1)]])
         indep_yf = simulate_1q_model(y0, omega_0, r, np.array([omega_0]), samples, 1.)
-        
+
         self.assertGreaterEqual(state_fidelity(pulse_sim_yf, indep_yf), 1 - (10**-5))
 
+    def test_set_phase(self):
+        """Test SetPhase command. Similar to the ShiftPhase test but includes a mixing of
+        ShiftPhase and SetPhase instructions to test relative vs absolute changes"""
+
+        omega_0 = 1.3981
+        r = 1.
+
+        system_model = self._system_model_1Q(omega_0, r)
+
+        # intermix shift and set phase instructions to verify absolute v.s. relative changes
+        sched = Schedule()
+        amp1 = 0.12
+        sched += Play(SamplePulse([amp1]), DriveChannel(0))
+        phi1 = 0.12374 * np.pi
+        sched += ShiftPhase(phi1, DriveChannel(0))
+        amp2 = 0.492
+        sched += Play(SamplePulse([amp2]), DriveChannel(0))
+        phi2 = 0.5839 * np.pi
+        sched += SetPhase(phi2, DriveChannel(0))
+        amp3 = 0.12 + 0.21 * 1j
+        sched += Play(SamplePulse([amp3]), DriveChannel(0))
+        phi3 = 0.1 * np.pi
+        sched += ShiftPhase(phi3, DriveChannel(0))
+        amp4 = 0.2 + 0.3 * 1j
+        sched += Play(SamplePulse([amp4]), DriveChannel(0))
+
+        sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
+
+        qobj = assemble([sched],
+                        backend=self.backend_sim,
+                        meas_level=2,
+                        meas_return='single',
+                        meas_map=[[0]],
+                        qubit_lo_freq=[omega_0],
+                        memory_slots=2,
+                        shots=1)
+
+        y0 = np.array([1., 0.])
+        backend_options = {'initial_state': y0}
+
+        results = self.backend_sim.run(qobj, system_model, backend_options).result()
+        pulse_sim_yf = results.get_statevector()
+
+        #run independent simulation
+        samples = np.array([[amp1],
+                            [amp2 * np.exp(1j * phi1)],
+                            [amp3 * np.exp(1j * phi2)],
+                            [amp4 * np.exp(1j * (phi2 + phi3))]])
+        indep_yf = simulate_1q_model(y0, omega_0, r, np.array([omega_0]), samples, 1.)
+
+        self.assertGreaterEqual(state_fidelity(pulse_sim_yf, indep_yf), 1 - (10**-5))
 
     def _system_model_1Q(self, omega_0, r):
         """Constructs a standard model for a 1 qubit system.

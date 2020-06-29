@@ -269,8 +269,7 @@ def format_pulse_samples(pulse_samples):
     return [[samp.real, samp.imag] for samp in new_samples]
 
 
-def experiment_to_structs(experiment, ham_chans, pulse_inds,
-                          pulse_to_int, dt, qubit_list=None):
+def experiment_to_structs(experiment, ham_chans, pulse_inds, pulse_to_int, dt, qubit_list=None):
     """Converts an experiment to a better formatted structure
 
     Args:
@@ -304,7 +303,7 @@ def experiment_to_structs(experiment, ham_chans, pulse_inds,
     # the last PV pulse on a channel needs to
     # be assigned a final time based on the next pulse on that channel
     pv_needs_tf = [0] * len(ham_chans)
-
+    
     # The instructions are time-ordered so just loop through them.
     for inst in experiment['instructions']:
         # Do D and U channels
@@ -334,7 +333,7 @@ def experiment_to_structs(experiment, ham_chans, pulse_inds,
                 structs['channels'][chan_name][0].extend([inst['t0'] * dt, None, index, cond])
                 pv_needs_tf[ham_chans[chan_name]] = 1
 
-            # Phase instructions
+            # ShiftPhase instructions
             elif inst['name'] == 'fc':
                 # get current phase value
                 current_phase = 0
@@ -343,6 +342,12 @@ def experiment_to_structs(experiment, ham_chans, pulse_inds,
 
                 structs['channels'][chan_name][1].extend([inst['t0'] * dt,
                                                           current_phase + inst['phase'],
+                                                          cond])
+
+            # SetPhase instruction
+            elif inst['name'] == 'setp':
+                structs['channels'][chan_name][1].extend([inst['t0'] * dt,
+                                                          inst['phase'],
                                                           cond])
 
             # A standard pulse

@@ -974,9 +974,9 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         sched += ShiftPhase(phi1, DriveChannel(0))
         amp2 = 0.492
         sched += Play(SamplePulse([amp2]), DriveChannel(0))
-        phi2 = 0.6839 * np.pi
+        phi2 = 0.5839 * np.pi
         sched += ShiftPhase(phi2, DriveChannel(0))
-        amp3 = 0.12 + 0.31*1j
+        amp3 = 0.12 + 0.21 * 1j
         sched += Play(SamplePulse([amp3]), DriveChannel(0))
 
         sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
@@ -999,9 +999,40 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         #run independent simulation
         samples = np.array([[amp1],
                             [amp2 * np.exp(1j * phi1)],
-                            [amp3 * np.exp(1j*(phi1 + phi2))]])
+                            [amp3 * np.exp(1j * (phi1 + phi2))]])
         indep_yf = simulate_1q_model(y0, omega_0, r, np.array([omega_0]), samples, 1.)
 
+        self.assertGreaterEqual(state_fidelity(pulse_sim_yf, indep_yf), 1 - (10**-5))
+
+        # run another schedule with only a single shift phase to verify
+        sched = Schedule()
+        amp1 = 0.12
+        sched += Play(SamplePulse([amp1]), DriveChannel(0))
+        phi1 = 0.12374 * np.pi
+        sched += ShiftPhase(phi1, DriveChannel(0))
+        amp2 = 0.492
+        sched += Play(SamplePulse([amp2]), DriveChannel(0))
+        sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
+
+        qobj = assemble([sched],
+                        backend=self.backend_sim,
+                        meas_level=2,
+                        meas_return='single',
+                        meas_map=[[0]],
+                        qubit_lo_freq=[omega_0],
+                        memory_slots=2,
+                        shots=1)
+
+        y0 = np.array([1., 0])
+        backend_options = {'initial_state': y0}
+
+        results = self.backend_sim.run(qobj, system_model, backend_options).result()
+        pulse_sim_yf = results.get_statevector()
+
+        #run independent simulation
+        samples = np.array([[amp1], [amp2 * np.exp(1j * phi1)]])
+        indep_yf = simulate_1q_model(y0, omega_0, r, np.array([omega_0]), samples, 1.)
+        
         self.assertGreaterEqual(state_fidelity(pulse_sim_yf, indep_yf), 1 - (10**-5))
 
 

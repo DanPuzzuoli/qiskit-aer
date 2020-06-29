@@ -27,7 +27,7 @@ from qiskit.providers.aer.backends import PulseSimulator
 
 from qiskit.compiler import assemble
 from qiskit.quantum_info import state_fidelity
-from qiskit.pulse import (Schedule, Play, ShiftPhase, Acquire, SamplePulse, DriveChannel,
+from qiskit.pulse import (Schedule, Play, ShiftPhase, Delay, Acquire, SamplePulse, DriveChannel,
                           ControlChannel, AcquireChannel, MemorySlot)
 from qiskit.providers.aer.pulse.de.DE_Methods import ScipyODE
 from qiskit.providers.aer.pulse.de.DE_Options import DE_Options
@@ -88,7 +88,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
                         meas_map=[[0]],
                         qubit_lo_freq=[omega_d],
                         memory_slots=1,
-                        shots=256)
+                        shots=128)
 
         # set backend backend_options including initial state
         y0 = np.array([1.0, 0.0])
@@ -115,7 +115,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
 
         # test counts
         counts = result.get_counts()
-        exp_counts = {'1': 256}
+        exp_counts = {'1': 128}
         self.assertDictAlmostEqual(counts, exp_counts)
 
     def test_x_gate_rwa(self):
@@ -144,7 +144,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
                         meas_map=[[0]],
                         qubit_lo_freq=[omega_d],
                         memory_slots=1,
-                        shots=256)
+                        shots=1)
 
         # set backend backend_options including initial state
         y0 = np.array([1.0, 0.0])
@@ -704,7 +704,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
     def test_meas_level_1(self):
         """Test measurement level 1. """
 
-        shots = 10000  # run large number of shots for good proportions
+        shots = 5000  # run large number of shots for good proportions
 
         total_samples = 100
         omega_0 = 1.
@@ -792,7 +792,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
                                 meas_map=[[0]],
                                 qubit_lo_freq=[omega_d],
                                 memory_slots=2,
-                                shots=1000)
+                                shots=1)
                 y0 = np.array([1., 0.])
                 backend_options = {'seed' : 9000, 'initial_state' : y0}
 
@@ -859,7 +859,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
                         meas_map=[[0]],
                         qubit_lo_freq=q_freqs,
                         memory_slots=2,
-                        shots=1000)
+                        shots=1)
         y0 = np.array([1., 0., 0., 0.])
         backend_options = {'seed' : 9000, 'initial_state' : y0}
 
@@ -875,6 +875,137 @@ class TestPulseSimulator(common.QiskitAerTestCase):
 
         # Check fidelity of statevectors
         self.assertGreaterEqual(state_fidelity(pulse_sim_yf, yf), 1-(10**-5))
+
+    def test_delay_instruction(self):
+        """Test for delay instruction."""
+
+        # construct system model specifically for this
+        hamiltonian = {}
+        hamiltonian['h_str'] = ['0.5*r*X0||D0', '0.5*r*Y0||D1']
+        hamiltonian['vars'] = {'r': np.pi}
+        hamiltonian['qub'] = {'0': 2}
+        ham_model = HamiltonianModel.from_dict(hamiltonian)
+
+        u_channel_lo = []
+        subsystem_list = [0]
+        dt = 1.
+
+        system_model = PulseSystemModel(hamiltonian=ham_model,
+                                        u_channel_lo=u_channel_lo,
+                                        subsystem_list=subsystem_list,
+                                        dt=dt)
+
+        # construct a schedule that should result in a unitary -Z if delays are correctly handled
+        # i.e. do a pi rotation about x, sandwiched by pi/2 rotations about y in opposite directions
+        # so that the x rotation is transformed into a z rotation.
+        # if delays are not handled correctly this process should fail
+        sched = Schedule()
+        sched += Play(SamplePulse([0.5]), DriveChannel(1))
+        sched += Delay(1, DriveChannel(1))
+        sched += Play(SamplePulse([-0.5]), DriveChannel(1))
+
+        sched += Delay(1, DriveChannel(0))
+        sched += Play(SamplePulse([1.]), DriveChannel(0))
+
+        sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
+
+        qobj = assemble([sched],
+                        backend=self.backend_sim,
+                        meas_level=2,
+                        meas_return='single',
+                        meas_map=[[0]],
+                        qubit_lo_freq=[0., 0.],
+                        memory_slots=2,
+                        shots=1)
+
+
+        # Result of schedule should be the unitary -1j*Z, so check rotation of an X eigenstate
+        backend_options = {'initial_state': np.array([1., 1.]) / np.sqrt(2)}
+
+        results = self.backend_sim.run(qobj, system_model, backend_options).result()
+
+        statevector = results.get_statevector()
+        expected_vector = np.array([-1j, 1j]) / np.sqrt(2)
+
+        self.assertGreaterEqual(state_fidelity(statevector, expected_vector), 1 - (10**-5))
+
+        # verify validity of simulation when no delays included
+        sched = Schedule()
+        sched += Play(SamplePulse([0.5]), DriveChannel(1))
+        sched += Play(SamplePulse([-0.5]), DriveChannel(1))
+
+        sched += Play(SamplePulse([1.]), DriveChannel(0))
+
+        sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
+
+        qobj = assemble([sched],
+                        backend=self.backend_sim,
+                        meas_level=2,
+                        meas_return='single',
+                        meas_map=[[0]],
+                        qubit_lo_freq=[0., 0.],
+                        memory_slots=2,
+                        shots=1)
+
+        backend_options = {'initial_state': np.array([1., 1.]) / np.sqrt(2)}
+
+        results = self.backend_sim.run(qobj, system_model, backend_options).result()
+
+        statevector = results.get_statevector()
+        U = expm(1j * np.pi * self.Y /4) @ expm(-1j * np.pi * (self.Y / 4 + self.X / 2))
+        expected_vector = U @ np.array([1., 1.]) / np.sqrt(2)
+
+        self.assertGreaterEqual(state_fidelity(statevector, expected_vector), 1 - (10**-5))
+
+    def test_shift_phase(self):
+        """Test ShiftPhase command."""
+
+        # construct system model specifically for this
+        hamiltonian = {}
+        hamiltonian['h_str'] = ['0.5*r*X0||D0', '0.5*r*Y0||D1']
+        hamiltonian['vars'] = {'r': np.pi}
+        hamiltonian['qub'] = {'0': 2}
+        ham_model = HamiltonianModel.from_dict(hamiltonian)
+
+        u_channel_lo = []
+        subsystem_list = [0]
+        dt = 1.
+
+        system_model = PulseSystemModel(hamiltonian=ham_model,
+                                        u_channel_lo=u_channel_lo,
+                                        subsystem_list=subsystem_list,
+                                        dt=dt)
+
+        # run a schedule in which a shifted phase causes a pulse to cancel itself.
+        # Also do it in multiple phase shifts to test accumulation
+        sched = Schedule()
+        sched += Play(SamplePulse([0.12 + 0.31*1j]), DriveChannel(0))
+        sched += ShiftPhase(np.pi/2, DriveChannel(0))
+        sched += Play(SamplePulse([0.]), DriveChannel(0))
+        sched += ShiftPhase(np.pi/2, DriveChannel(0))
+        sched += Play(SamplePulse([0.12 + 0.31*1j]), DriveChannel(0))
+
+        sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
+
+        qobj = assemble([sched],
+                        backend=self.backend_sim,
+                        meas_level=2,
+                        meas_return='single',
+                        meas_map=[[0]],
+                        qubit_lo_freq=[0., 0.],
+                        memory_slots=2,
+                        shots=1)
+
+        backend_options = {'initial_state': np.array([1., 0])}
+
+        results = self.backend_sim.run(qobj, system_model, backend_options).result()
+
+        statevector = results.get_statevector()
+        expected_vector = np.array([1., 0])
+
+        self.assertGreaterEqual(state_fidelity(statevector, expected_vector), 1 - (10**-5))
+
+        # check ability to track multiple shifted phases
 
 
     def _system_model_1Q(self, omega_0, r):

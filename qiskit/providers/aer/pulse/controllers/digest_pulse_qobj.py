@@ -334,9 +334,16 @@ def experiment_to_structs(experiment, ham_chans, pulse_inds,
                 structs['channels'][chan_name][0].extend([inst['t0'] * dt, None, index, cond])
                 pv_needs_tf[ham_chans[chan_name]] = 1
 
-            # Frame changes
+            # Phase instructions
             elif inst['name'] == 'fc':
-                structs['channels'][chan_name][1].extend([inst['t0'] * dt, inst['phase'], cond])
+                # get current phase value
+                current_phase = 0
+                if len(structs['channels'][chan_name][1]) > 0:
+                    current_phase = structs['channels'][chan_name][1][-2]
+
+                structs['channels'][chan_name][1].extend([inst['t0'] * dt,
+                                                          current_phase + inst['phase'],
+                                                          cond])
 
             # A standard pulse
             else:

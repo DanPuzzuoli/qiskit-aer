@@ -1087,6 +1087,40 @@ class TestPulseSimulator(common.QiskitAerTestCase):
 
         self.assertGreaterEqual(state_fidelity(pulse_sim_yf, indep_yf), 1 - (10**-5))
 
+    def test_set_phase_rwa(self):
+        """Test SetPhase command using an RWA approximate solution."""
+        omega_0 = 5.123
+        r = 0.01
+
+        system_model = self._system_model_1Q(omega_0, r)
+
+        sched = Schedule()
+        sched += SetPhase(np.pi / 2, DriveChannel(0))
+        sched += Play(SamplePulse(np.ones(100)), DriveChannel(0))
+
+        sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
+
+        qobj = assemble([sched],
+                        backend=self.backend_sim,
+                        meas_level=2,
+                        meas_return='single',
+                        meas_map=[[0]],
+                        qubit_lo_freq=[omega_0],
+                        memory_slots=2,
+                        shots=1)
+
+        y0 = np.array([1., 1.]) / np.sqrt(2)
+        backend_options = {'initial_state': y0}
+
+        results = self.backend_sim.run(qobj, system_model, backend_options).result()
+        pulse_sim_yf = results.get_statevector()
+
+        #run independent simulation
+        phases = np.exp((-1j * 2 * np.pi * omega_0 * np.array([1, -1]) / 2) * 100)
+        approx_yf = phases * (expm(-1j * (np.pi / 2) * self.Y) @ y0)
+
+        self.assertGreaterEqual(state_fidelity(pulse_sim_yf, approx_yf), 0.99)
+
     def _system_model_1Q(self, omega_0, r):
         """Constructs a standard model for a 1 qubit system.
 

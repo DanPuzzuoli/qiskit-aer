@@ -960,30 +960,24 @@ class TestPulseSimulator(common.QiskitAerTestCase):
     def test_shift_phase(self):
         """Test ShiftPhase command."""
 
-        # construct system model specifically for this
-        hamiltonian = {}
-        hamiltonian['h_str'] = ['0.5*r*X0||D0', '0.5*r*Y0||D1']
-        hamiltonian['vars'] = {'r': np.pi}
-        hamiltonian['qub'] = {'0': 2}
-        ham_model = HamiltonianModel.from_dict(hamiltonian)
+        omega_0 = 0
+        r = 1.
 
-        u_channel_lo = []
-        subsystem_list = [0]
-        dt = 1.
-
-        system_model = PulseSystemModel(hamiltonian=ham_model,
-                                        u_channel_lo=u_channel_lo,
-                                        subsystem_list=subsystem_list,
-                                        dt=dt)
+        system_model = self._system_model_1Q(omega_0, r)
 
         # run a schedule in which a shifted phase causes a pulse to cancel itself.
         # Also do it in multiple phase shifts to test accumulation
         sched = Schedule()
-        sched += Play(SamplePulse([0.12 + 0.31*1j]), DriveChannel(0))
-        sched += ShiftPhase(np.pi/2, DriveChannel(0))
-        sched += Play(SamplePulse([0.]), DriveChannel(0))
-        sched += ShiftPhase(np.pi/2, DriveChannel(0))
-        sched += Play(SamplePulse([0.12 + 0.31*1j]), DriveChannel(0))
+        amp1 = 0.12
+        sched += Play(SamplePulse([amp1]), DriveChannel(0))
+        phi1 = 0.12374 * np.pi
+        sched += ShiftPhase(phi1, DriveChannel(0))
+        amp2 = 0.492
+        sched += Play(SamplePulse([amp2]), DriveChannel(0))
+        phi2 = 0.6839 * np.pi
+        sched += ShiftPhase(phi2, DriveChannel(0))
+        amp3 = 0.12 + 0.31*1j
+        sched += Play(SamplePulse([amp3]), DriveChannel(0))
 
         sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
 
@@ -992,20 +986,23 @@ class TestPulseSimulator(common.QiskitAerTestCase):
                         meas_level=2,
                         meas_return='single',
                         meas_map=[[0]],
-                        qubit_lo_freq=[0., 0.],
+                        qubit_lo_freq=[omega_0],
                         memory_slots=2,
                         shots=1)
 
-        backend_options = {'initial_state': np.array([1., 0])}
+        y0 = np.array([1., 0])
+        backend_options = {'initial_state': y0}
 
         results = self.backend_sim.run(qobj, system_model, backend_options).result()
+        pulse_sim_yf = results.get_statevector()
 
-        statevector = results.get_statevector()
-        expected_vector = np.array([1., 0])
+        #run independent simulation
+        samples = np.array([[amp1],
+                            [amp2 * np.exp(1j * phi1)],
+                            [amp3 * np.exp(1j*(phi1 + phi2))]])
+        indep_yf = simulate_1q_model(y0, omega_0, r, np.array([omega_0]), samples, 1.)
 
-        self.assertGreaterEqual(state_fidelity(statevector, expected_vector), 1 - (10**-5))
-
-        # check ability to track multiple shifted phases
+        self.assertGreaterEqual(state_fidelity(pulse_sim_yf, indep_yf), 1 - (10**-5))
 
 
     def _system_model_1Q(self, omega_0, r):

@@ -303,7 +303,7 @@ def experiment_to_structs(experiment, ham_chans, pulse_inds, pulse_to_int, dt, q
     # the last PV pulse on a channel needs to
     # be assigned a final time based on the next pulse on that channel
     pv_needs_tf = [0] * len(ham_chans)
-    
+
     # The instructions are time-ordered so just loop through them.
     for inst in experiment['instructions']:
         # Do D and U channels

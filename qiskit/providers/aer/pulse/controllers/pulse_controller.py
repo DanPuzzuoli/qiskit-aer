@@ -251,8 +251,7 @@ def format_exp_results(exp_results, exp_times, pulse_sim_desc):
             # convert the memory **array** into a n
             # integer
             # e.g. [1,0] -> 2
-            int_mem = memory.dot(np.power(2.0,
-                                          np.arange(memory.shape[1]))).astype(int)
+            int_mem = memory.dot(np.power(2.0, np.arange(memory.shape[1]))).astype(int)
 
             # if the memory flag is set return each shot
             if pulse_sim_desc.memory:
@@ -275,14 +274,12 @@ def format_exp_results(exp_results, exp_times, pulse_sim_desc):
                 memory = [np.mean(memory, 0)]
 
             # convert into the right [real, complex] pair form for json
-            # this should be cython?
             results['data']['memory'] = []
 
             for mem_shot in memory:
                 results['data']['memory'].append([])
                 for mem_slot in mem_shot:
-                    results['data']['memory'][-1].append(
-                        [np.real(mem_slot), np.imag(mem_slot)])
+                    results['data']['memory'][-1].append([np.real(mem_slot), np.imag(mem_slot)])
 
             if m_ret == 'avg':
                 results['data']['memory'] = results['data']['memory'][0]
@@ -450,9 +447,6 @@ class PulseSimDescription:
     """
     def __init__(self):
         self.initial_state = None
-        # Channels in the Hamiltonian string
-        # these tell the order in which the channels
-        # are evaluated in the RHS solver.
         self.experiments = []
         # Can experiments be simulated once then sampled
         self.can_sample = True

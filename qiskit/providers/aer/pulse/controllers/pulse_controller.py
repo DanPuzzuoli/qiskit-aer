@@ -203,7 +203,12 @@ def pulse_controller(qobj, system_model, backend_options):
                        else run_monte_carlo_experiments)
     exp_results, exp_times = run_experiments(pulse_sim_desc, pulse_de_model, solver_options)
 
-    return format_exp_results(exp_results, exp_times, pulse_sim_desc)
+    output = {
+        'results': format_exp_results(exp_results, exp_times, pulse_sim_desc),
+        'success': True,
+        'qobj_id': qobj.qobj_id
+    }
+    return output
 
 
 def format_exp_results(exp_results, exp_times, pulse_sim_desc):
@@ -288,7 +293,6 @@ def format_exp_results(exp_results, exp_times, pulse_sim_desc):
                 results['data']['memory'] = results['data']['memory'][0]
 
         all_results.append(results)
-
     return all_results
 
 

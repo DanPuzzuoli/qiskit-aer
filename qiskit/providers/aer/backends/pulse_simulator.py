@@ -10,7 +10,6 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 # pylint: disable=arguments-differ, missing-return-type-doc
-
 """
 Qiskit Aer pulse simulator backend.
 """
@@ -19,9 +18,8 @@ import logging
 from numpy import inf
 from qiskit.providers.models import BackendConfiguration, PulseDefaults
 from qiskit.providers.aer.backends.aerbackend import AerBackend
-from qiskit.providers.aer.pulse.pulse_system_model import PulseSystemModel
-from qiskit.providers.aer.pulse.qobj.digest import digest_pulse_obj
-from qiskit.providers.aer.pulse.solver.opsolve import opsolve
+from qiskit.providers.aer.pulse.controllers.pulse_controller import pulse_controller
+from qiskit.providers.aer.pulse.system_models.pulse_system_model import PulseSystemModel
 from qiskit.providers.aer.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -99,7 +97,6 @@ class PulseSimulator(AerBackend):
       are ``'atol'``, ``'rtol'``, ``'nsteps'``, ``'max_step'``, ``'num_cpus'``, ``'norm_tol'``,
       and ``'norm_steps'``.
     """
-
     def __init__(self, provider=None, **backend_options):
 
         # purpose of defaults is to pass assemble checks
@@ -112,35 +109,14 @@ class PulseSimulator(AerBackend):
                          provider=provider,
                          backend_options=backend_options)
 
-    # pylint: disable=arguments-differ
-    def run(self, qobj, system_model=None,
-            validate=False,
-            backend_options=None,
-            **kwargs):
-        """Run a qobj on system_model.
-
-        Args:
-            qobj (PulseQobj): Qobj for pulse Schedules to run
-            system_model (PulseSystemModel or None): Physical model to run simulation on
-            validate (bool): Flag for validation checks
-            backend_options (dict): Other options
-            kwargs (any): optional additional backend options.
-
-        Returns:
-            Result: results of simulation
-        """
-        return super().run(qobj,
-                           validate=validate,
-                           backend_options=backend_options,
-                           system_model=system_model, **kwargs)
-
     @classmethod
     def from_backend(cls, backend, **options):
         """Initialize simulator from backend."""
         configuration = backend.configuration()
         coupling_map = configuration.coupling_map
         backend_name = 'pulse_simulator({})'.format(configuration.backend_name)
-        system_model = PulseSystemModel.from_backend(backend, subsystem_list=None)
+        system_model = PulseSystemModel.from_backend(backend,
+                                                     subsystem_list=None)
         sim = cls(system_model=system_model,
                   coupling_map=coupling_map,
                   backend_name=backend_name,
@@ -148,15 +124,17 @@ class PulseSimulator(AerBackend):
         return sim
 
     def _execute(self, qobj, run_config):
-        """Execute qobj"""
-        system_model = run_config.get('system_model')
-        openpulse_system = digest_pulse_obj(qobj, system_model, run_config)
-        results = opsolve(openpulse_system)
-        output = {}
-        output['qobj_id'] = qobj.qobj_id
-        output['results'] = results
-        output['success'] = True
-        return output
+        """Execute a qobj on the backend.
+
+        Args:
+            qobj (QasmQobj): simulator input.
+            run_config (dict): run config for overriding Qobj config.
+
+        Returns:
+            dict: return a dictionary of results.
+        """
+        system_model = run_config['system_model']
+        return pulse_controller(qobj, system_model, run_config)
 
     def defaults(self):
         """Return defaults.

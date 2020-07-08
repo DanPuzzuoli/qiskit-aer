@@ -9,7 +9,6 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
-
 """
 Qiskit Aer qasm simulator backend.
 """
@@ -20,8 +19,8 @@ import logging
 import datetime
 import os
 import time
-import uuid
 import warnings
+from abc import ABC, abstractmethod
 from numpy import ndarray
 
 from qiskit.providers import BaseBackend
@@ -31,7 +30,6 @@ from qiskit.result import Result
 
 from qiskit.providers.aer.aerjob import AerJob
 from qiskit.providers.aer.aererror import AerError
-
 
 # Logger
 logger = logging.getLogger(__name__)
@@ -62,13 +60,12 @@ class AerJSONEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-class AerBackend(BaseBackend):
+class AerBackend(BaseBackend, ABC):
     """Qiskit Aer Backend class."""
-
-    def __init__(self, configuration,
+    def __init__(self,
+                 configuration,
                  available_methods=None,
                  backend_options=None,
-                 controller=None,
                  provider=None):
         """Aer class for backends.
 
@@ -81,7 +78,6 @@ class AerBackend(BaseBackend):
             available_methods (list or None): the available simulation methods if
                                               backend is configurable.
             provider (BaseProvider): provider responsible for this backend.
-            controller (function or None): Aer cython controller to be executed.
             backend_options (dict or None): set the default backend options.
 
         Raises:
@@ -97,9 +93,6 @@ class AerBackend(BaseBackend):
         super().__init__(copy.copy(self._default_configuration),
                          provider=provider)
 
-        # Set Pybind11 C++ execution controller
-        self._controller = controller
-
         # Set available methods
         if available_methods is None:
             self._available_methods = []
@@ -112,27 +105,10 @@ class AerBackend(BaseBackend):
             for key, val in backend_options.items():
                 self._set_option(key, val)
 
-    @property
-    def options(self):
-        """Return the current simulator options"""
-        return self._options
-
-    def set_options(self, **backend_options):
-        """Set the simulator options"""
-        for key, val in backend_options.items():
-            self._set_option(key, val)
-
-    def reset_options(self):
-        """Reset the simulator options to default values."""
-        self._configuration = self._default_configuration.copy()
-        self._options = {}
-
-    def available_methods(self):
-        """Return the available simulation methods."""
-        return self._available_methods
-
     # pylint: disable=arguments-differ
-    def run(self, qobj,
+    def run(
+            self,
+            qobj,
             validate=True,
             backend_options=None,  # DEPRECATED
             **run_options):
@@ -163,39 +139,40 @@ class AerBackend(BaseBackend):
         if backend_options is not None:
             warnings.warn(
                 'Using `backend_options` kwarg has been deprecated as of'
-                ' qiskit-aer 0.5.0 and will be removed no earlier than 3'
+                ' qiskit-aer 0.6.0 and will be removed no earlier than 3'
                 ' months from that release date. Runtime backend options'
                 ' should now be added directly using kwargs for each option.',
-                DeprecationWarning, stacklevel=3)
+                DeprecationWarning,
+                stacklevel=3)
+
         # Submit job
-        job_id = str(uuid.uuid4())
-        aer_job = AerJob(self, job_id, self._run_job, qobj, validate,
-                         backend_options=backend_options, **run_options)
+        aer_job = AerJob(self,
+                         self._run,
+                         qobj,
+                         validate=validate,
+                         backend_options=backend_options,
+                         **run_options)
         aer_job.submit()
         return aer_job
 
-    def run_direct(self, qobj, validate=True, **run_options):
-        """Run a qobj on the backend.
+    @property
+    def options(self):
+        """Return the current simulator options"""
+        return self._options
 
-        This executes a qobj and returns a Result object without initializing
-        an async Job object.
+    def set_options(self, **backend_options):
+        """Set the simulator options"""
+        for key, val in backend_options.items():
+            self._set_option(key, val)
 
-        Args:
-            qobj (QasmQobj): The Qobj to be executed.
-            validate (bool): validate the Qobj before running (default: True).
-            run_options (kwargs): additional run time backend options.
+    def reset_options(self):
+        """Reset the simulator options to default values."""
+        self._configuration = self._default_configuration.copy()
+        self._options = {}
 
-        Returns:
-            Result: The simulation result.
-
-        Additional Information:
-            * kwarg options specified in ``run_options`` will override options
-              of the same kwarg specified in the simulator options, the
-              ``backend_options`` and the ``Qobj.config``.
-        """
-        # Submit job
-        job_id = str(uuid.uuid4())
-        return self._run_job(job_id, qobj, validate, **run_options)
+    def available_methods(self):
+        """Return the available simulation methods."""
+        return self._available_methods
 
     def status(self):
         """Return backend status.
@@ -203,20 +180,27 @@ class AerBackend(BaseBackend):
         Returns:
             BackendStatus: the status of the backend.
         """
-        return BackendStatus(backend_name=self.name(),
-                             backend_version=self.configuration().backend_version,
-                             operational=True,
-                             pending_jobs=0,
-                             status_msg='')
+        return BackendStatus(
+            backend_name=self.name(),
+            backend_version=self.configuration().backend_version,
+            operational=True,
+            pending_jobs=0,
+            status_msg='')
 
-    def _run_job(self, job_id, qobj, validate,
-                 backend_options=None,  # DEPRECATED
-                 **run_options):
+    def _run(
+            self,
+            qobj,
+            job_id='',
+            validate=True,
+            backend_options=None,  # DEPRECATED
+            **run_options):
         """Run a job"""
         # Start timer
         start = time.time()
-        run_config = self._run_config(
-            backend_options=backend_options, **run_options)
+
+        # Runtime config
+        run_config = self._run_config(backend_options=backend_options,
+                                      **run_options)
 
         # Optional validation
         if validate:
@@ -231,7 +215,8 @@ class AerBackend(BaseBackend):
             logger.error("%s: simulation failed.", self.name())
             if output:
                 logger.error('Output: %s', output)
-            raise AerError("simulation terminated without returning valid output.")
+            raise AerError(
+                "simulation terminated without returning valid output.")
 
         # Format results
         output["job_id"] = job_id
@@ -241,9 +226,24 @@ class AerBackend(BaseBackend):
 
         # Add execution time
         output["time_taken"] = time.time() - start
-
-        # Return results
         return Result.from_dict(output)
+
+    @abstractmethod
+    def _execute(self, qobj, run_config):
+        """Execute a qobj on the backend.
+
+        Args:
+            qobj (QasmQobj or PulseQobj): simulator input.
+            run_config (dict): run config for overriding Qobj config.
+
+        Returns:
+            dict: return a dictionary of results.
+        """
+        pass
+
+    def _validate(self, qobj, options):
+        """Validate the qobj and backend_options for the backend"""
+        pass
 
     def _set_option(self, key, value):
         """Special handling for setting backend options.
@@ -265,32 +265,21 @@ class AerBackend(BaseBackend):
         if key == 'basis_gates':
             self._configuration.basis_gates = value
             return
-        if key == 'couling_map':
+        if key == 'coupling_map':
             self._configuration.coupling_map = value
             return
 
         # If key is method, we validate it is one of the available methods
         if key == 'method' and value not in self._available_methods:
-            raise AerError("Invalid simulation method {}. Availalbe methods"
+            raise AerError("Invalid simulation method {}. Available methods"
                            " are: {}".format(value, self._available_methods))
         # Add to options dict
         self._options[key] = value
 
-    def _execute(self, qobj, run_config):
-        """Run the controller"""
-        # Add sim config to qobj
-        controller_input = qobj.to_dict()
-        for key, val in run_config.items():
-            if hasattr(val, 'to_dict'):
-                controller_input['config'][key] = val.to_dict()
-            else:
-                controller_input['config'][key] = val
-        # Execute on controller
-        return self._controller(controller_input)
-
-    def _run_config(self,
-                    backend_options=None,  # DEPRECATED
-                    **run_options):
+    def _run_config(
+            self,
+            backend_options=None,  # DEPRECATED
+            **run_options):
         """Return execution sim config dict from backend options."""
         # Get sim config
         run_config = self._options.copy()
@@ -299,17 +288,15 @@ class AerBackend(BaseBackend):
         # loaded at runtime by the simulator extension
         run_config['library_dir'] = LIBRARY_DIR
 
-        # Override with run-time options
+        # DEPRECATED backend options
         if backend_options is not None:
             for key, val in backend_options.items():
                 run_config[key] = val
+
+        # Override with run-time options
         for key, val in run_options.items():
             run_config[key] = val
         return run_config
-
-    def _validate(self, qobj, options):
-        """Validate the qobj and backend_options for the backend"""
-        pass
 
     def __repr__(self):
         """String representation of an AerBackend."""

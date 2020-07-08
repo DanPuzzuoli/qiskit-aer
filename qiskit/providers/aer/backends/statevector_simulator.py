@@ -9,7 +9,6 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
-
 """
 Qiskit Aer statevector simulator backend.
 """
@@ -20,7 +19,8 @@ from qiskit.providers.models import QasmBackendConfiguration
 from qiskit.providers.aer.backends.aerbackend import AerBackend
 from qiskit.providers.aer.backends.backend_utils import (backend_gates,
                                                          available_methods,
-                                                         MAX_QUBITS_STATEVECTOR)
+                                                         MAX_QUBITS_STATEVECTOR
+                                                         )
 from qiskit.providers.aer.aererror import AerError
 from qiskit.providers.aer.version import __version__
 # pylint: disable=import-error, no-name-in-module
@@ -29,19 +29,11 @@ from qiskit.providers.aer.backends.controller_wrappers import statevector_contro
 # Logger
 logger = logging.getLogger(__name__)
 
-AVAILABLE_METHODS = available_methods(
-    statevector_controller_execute, [
-        'automatic',
-        'statevector',
-        'statevector_gpu',
-        'statevector_thrust'
-    ])
-
 BASIS_GATES = [
-    'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg',
-    't', 'tdg', 'swap', 'ccx', 'unitary', 'initialize', 'cu1', 'cu2',
-    'cu3', 'cswap', 'mcx', 'mcy', 'mcz', 'mcu1', 'mcu2', 'mcu3',
-    'mcswap', 'multiplexer'
+    'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg', 't',
+    'tdg', 'swap', 'ccx', 'unitary', 'initialize', 'cu1', 'cu2', 'cu3',
+    'cswap', 'mcx', 'mcy', 'mcz', 'mcu1', 'mcu2', 'mcu3', 'mcswap',
+    'multiplexer'
 ]
 
 DEFAULT_CONFIGURATION = {
@@ -55,10 +47,10 @@ DEFAULT_CONFIGURATION = {
     'open_pulse': False,
     'memory': True,
     'max_shots': int(1e6),  # Note that this backend will only ever
-                            # perform a single shot. This value is just
-                            # so that the default shot value for execute
-                            # will not raise an error when trying to run
-                            # a simulation
+    # perform a single shot. This value is just
+    # so that the default shot value for execute
+    # will not raise an error when trying to run
+    # a simulation
     'description': 'A C++ statevector simulator for QASM Qobj files',
     'coupling_map': None,
     'basis_gates': BASIS_GATES,
@@ -106,14 +98,42 @@ class StatevectorSimulator(AerBackend):
       performance (Default: 14).
     """
 
-    def __init__(self,
-                 provider=None,
-                 **backend_options):
-        super().__init__(QasmBackendConfiguration.from_dict(DEFAULT_CONFIGURATION),
-                         available_methods=AVAILABLE_METHODS,
-                         provider=provider,
-                         controller=statevector_controller_execute,
-                         backend_options=backend_options)
+    # Cache available methods
+    _AVAILABLE_METHODS = None
+
+    def __init__(self, provider=None, **backend_options):
+
+        if StatevectorSimulator._AVAILABLE_METHODS is None:
+            StatevectorSimulator._AVAILABLE_METHODS = available_methods(
+                statevector_controller_execute, [
+                    'automatic', 'statevector', 'statevector_gpu',
+                    'statevector_thrust'
+                ])
+
+        super().__init__(
+            QasmBackendConfiguration.from_dict(DEFAULT_CONFIGURATION),
+            available_methods=StatevectorSimulator._AVAILABLE_METHODS,
+            provider=provider,
+            backend_options=backend_options)
+
+    def _execute(self, qobj, run_config):
+        """Execute a qobj on the backend.
+
+        Args:
+            qobj (QasmQobj): simulator input.
+            run_config (dict): run config for overriding Qobj config.
+
+        Returns:
+            dict: return a dictionary of results.
+        """
+        controller_input = qobj.to_dict()
+        for key, val in run_config.items():
+            if hasattr(val, 'to_dict'):
+                controller_input['config'][key] = val.to_dict()
+            else:
+                controller_input['config'][key] = val
+        # Execute on controller
+        return statevector_controller_execute(controller_input)
 
     def _validate(self, qobj, options):
         """Semantic validations of the qobj which cannot be done via schemas.
@@ -131,7 +151,8 @@ class StatevectorSimulator(AerBackend):
         if n_qubits > max_qubits:
             raise AerError(
                 'Number of qubits ({}) is greater than max ({}) for "{}" with {} GB system memory.'
-                .format(n_qubits, max_qubits, name, int(local_hardware_info()['memory'])))
+                .format(n_qubits, max_qubits, name,
+                        int(local_hardware_info()['memory'])))
 
         if qobj.config.shots != 1:
             logger.info('"%s" only supports 1 shot. Setting shots=1.', name)
@@ -140,7 +161,7 @@ class StatevectorSimulator(AerBackend):
         for experiment in qobj.experiments:
             exp_name = experiment.header.name
             if getattr(experiment.config, 'shots', 1) != 1:
-                logger.info('"%s" only supports 1 shot. '
-                            'Setting shots=1 for circuit "%s".',
-                            name, exp_name)
+                logger.info(
+                    '"%s" only supports 1 shot. '
+                    'Setting shots=1 for circuit "%s".', name, exp_name)
                 experiment.config.shots = 1

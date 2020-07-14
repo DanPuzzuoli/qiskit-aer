@@ -19,14 +19,12 @@ Entry/exit point for pulse simulation specified through PulseSimulator backend
 
 from warnings import warn
 import numpy as np
-from ..system_models.string_model_parser.string_model_parser import NoiseParser
 from ..qutip_extra_lite import qobj_generators as qobj_gen
 from .digest_pulse_qobj import digest_pulse_qobj
 from ..qutip_extra_lite.qobj import Qobj
 from .pulse_sim_options import PulseSimOptions
 from .unitary_controller import run_unitary_experiments
 from .mc_controller import run_monte_carlo_experiments
-from .pulse_utils import get_ode_rhs_functor
 
 
 def pulse_controller(qobj, system_model, backend_options):
@@ -49,8 +47,6 @@ def pulse_controller(qobj, system_model, backend_options):
 
     if backend_options is None:
         backend_options = {}
-
-    noise_model = backend_options.get('noise_model', None)
 
     # ###############################
     # ### Extract model parameters
@@ -83,6 +79,8 @@ def pulse_controller(qobj, system_model, backend_options):
         raise ValueError('System model must have a dt value to simulate.')
 
     # Parse noise
+    noise_model = backend_options.get('noise_model', None)
+
     if noise_model:
         system_model._add_noise(noise_model)
         if any(system_model.noise):
@@ -105,6 +103,7 @@ def pulse_controller(qobj, system_model, backend_options):
     pulse_sim_desc.memory = digested_qobj.memory
 
     system_model.n_registers = digested_qobj.n_registers
+
     system_model.pulse_array = digested_qobj.pulse_array
     system_model.pulse_indices = digested_qobj.pulse_indices
     system_model.pulse_to_int = digested_qobj.pulse_to_int

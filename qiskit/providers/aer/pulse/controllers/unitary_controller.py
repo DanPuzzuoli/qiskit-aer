@@ -145,7 +145,7 @@ def unitary_evolution(exp, y0, pulse_de_model, solver_options=None):
         else:
             err_msg = 'ODE method exited with status: %s' % ODE.return_code()
             raise Exception(err_msg)
-    
+
     # apply final rotation to come out of rotating frame
     psi_rot = np.exp(-1j * pulse_de_model.hamiltonian._h_diag * ODE.t)
     psi *= psi_rot

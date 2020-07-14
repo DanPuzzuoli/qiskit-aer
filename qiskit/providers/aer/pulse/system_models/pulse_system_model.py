@@ -11,7 +11,7 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
-# pylint: disable=eval-used, exec-used, invalid-name
+# pylint: disable=eval-used, exec-used, invalid-name, no-name-in-module
 
 "System Model class for system specification for the PulseSimulator"
 
@@ -94,8 +94,35 @@ class PulseSystemModel():
         self.subsystem_list = subsystem_list
         self.dt = dt
 
-        self._rhs_dict = None
         self.noise = None
+
+        # initialize register attribute
+        self.n_registers = None
+
+        # initialize signal attributes
+        self.freqs = None
+        self.pulse_array = None
+        self.pulse_indices = None
+        self.pulse_to_int = None
+
+        # initialize additional internal configuration attributes
+        self._rhs_dict = None
+        self.vars = None
+        self.vars_names = None
+
+        self.num_h_terms = None
+        self.c_num = None
+
+        self.c_ops_data = None
+        self.c_ops_ind = None
+        self.c_ops_ptr = None
+        self.n_ops_data = None
+        self.n_ops_ind = None
+        self.n_ops_ptr = None
+
+        self.h_ops_data = None
+        self.h_ops_ind = None
+        self.h_ops_ptr = None
 
     @classmethod
     def from_backend(cls, backend, subsystem_list=None):
@@ -236,7 +263,7 @@ class PulseSystemModel():
 
         Parameters:
             noise_model (dict): noise model in dict format
-        
+
         Raises:
             Warning: warning that noise models are untested
         """

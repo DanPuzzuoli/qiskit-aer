@@ -231,8 +231,21 @@ class PulseSystemModel():
                 raise ValueError("Channel is not D or U")
         return freqs
 
-    def add_noise(self, noise_model=None):
+    def _add_noise(self, noise_model=None):
+        """Add a Lindblad noise model
+
+        Parameters:
+            noise_model (dict): noise model in dict format
+        
+        Raises:
+            Warning: warning that noise models are untested
+        """
+
         if noise_model:
+            warning_str = '{} are an untested feature, and therefore may not behave as expected.'
+            if noise_model is not None:
+                warn(warning_str.format('Noise models'))
+
             dim_osc = {}
             dim_qub = self.hamiltonian._subsystem_dims
             noise = NoiseParser(noise_dict=noise_model, dim_osc=dim_osc, dim_qub=dim_qub)

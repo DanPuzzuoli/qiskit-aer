@@ -52,9 +52,6 @@ def pulse_controller(qobj, system_model, backend_options):
 
     noise_model = backend_options.get('noise_model', None)
 
-    # post warnings for unsupported features
-    _unsupported_warnings(noise_model)
-
     # ###############################
     # ### Extract model parameters
     # ###############################
@@ -87,7 +84,7 @@ def pulse_controller(qobj, system_model, backend_options):
 
     # Parse noise
     if noise_model:
-        system_model.add_noise(noise_model)
+        system_model._add_noise(noise_model)
         if any(system_model.noise):
             pulse_sim_desc.can_sample = False
 
@@ -276,22 +273,6 @@ def format_exp_results(exp_results, exp_times, pulse_sim_desc):
         all_results.append(results)
 
     return all_results
-
-
-def _unsupported_warnings(noise_model):
-    """ Warns the user about untested/unsupported features.
-
-    Parameters:
-        noise_model (dict): backend_options for simulation
-    Returns:
-    Raises:
-        AerError: for unsupported features
-    """
-
-    # Warnings that don't stop execution
-    warning_str = '{} are an untested feature, and therefore may not behave as expected.'
-    if noise_model is not None:
-        warn(warning_str.format('Noise models'))
 
 
 class PulseSimDescription:

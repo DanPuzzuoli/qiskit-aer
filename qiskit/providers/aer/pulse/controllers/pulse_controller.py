@@ -146,10 +146,9 @@ def pulse_controller(qobj, system_model, backend_options):
     # width of the smallest pulse
     min_width = np.iinfo(np.int32).max
     for key, val in system_model.pulse_to_int.items():
-        if key != 'pv':
-            stop = system_model.pulse_indices[val + 1]
-            start = system_model.pulse_indices[val]
-            min_width = min(min_width, stop - start)
+        stop = system_model.pulse_indices[val + 1]
+        start = system_model.pulse_indices[val]
+        min_width = min(min_width, stop - start)
     solver_options.de_options.max_step = min_width / 2 * system_model.dt
 
     # ########################################

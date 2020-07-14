@@ -215,17 +215,6 @@ def build_pulse_arrays(experiments, pulse_library):
         num_pulse += 1
 
     idx = num_pulse + 1
-    # now go through experiments looking for PV gates
-    pv_pulses = []
-    for exp in experiments:
-        for pulse in exp['instructions']:
-            if pulse['name'] == 'pv':
-                if pulse['val'] not in [pval[1] for pval in pv_pulses] and pulse['val'] != 0:
-                    pv_pulses.append((pulse['val'], idx))
-                    idx += 1
-                    total_pulse_length += 1
-
-    pulse_dict['pv'] = pv_pulses
 
     pulses = np.empty(total_pulse_length, dtype=complex)
     pulses_idx = np.zeros(idx + 1, dtype=np.uint32)
@@ -236,12 +225,6 @@ def build_pulse_arrays(experiments, pulse_library):
         stop = pulses_idx[ind - 1] + len(pulse['samples'])
         pulses_idx[ind] = stop
         oplist_to_array(format_pulse_samples(pulse['samples']), pulses, pulses_idx[ind - 1])
-        ind += 1
-
-    for pv in pv_pulses:
-        stop = pulses_idx[ind - 1] + 1
-        pulses_idx[ind] = stop
-        oplist_to_array(format_pulse_samples([pv[0]]), pulses, pulses_idx[ind - 1])
         ind += 1
 
     return pulses, pulses_idx, pulse_dict
@@ -299,10 +282,6 @@ def experiment_to_structs(experiment, ham_chans, pulse_inds, pulse_to_int, dt, q
     structs['snapshot'] = []
     structs['tlist'] = []
     structs['can_sample'] = True
-    # This is a list that tells us whether
-    # the last PV pulse on a channel needs to
-    # be assigned a final time based on the next pulse on that channel
-    pv_needs_tf = [0] * len(ham_chans)
 
     # The instructions are time-ordered so just loop through them.
     for inst in experiment['instructions']:
@@ -312,29 +291,14 @@ def experiment_to_structs(experiment, ham_chans, pulse_inds, pulse_to_int, dt, q
             if chan_name not in ham_chans.keys():
                 raise ValueError('Channel {} is not in Hamiltonian model'.format(inst['ch']))
 
-            # If last pulse on channel was a PV then need to set
-            # its final time to be start time of current pulse
-            if pv_needs_tf[ham_chans[chan_name]]:
-                structs['channels'][chan_name][0][-3] = inst['t0'] * dt
-                pv_needs_tf[ham_chans[chan_name]] = 0
-
             # Get condtional info
             if 'conditional' in inst.keys():
                 cond = inst['conditional']
             else:
                 cond = -1
-            # PV's
-            if inst['name'] == 'pv':
-                # Get PV index
-                for pv in pulse_to_int['pv']:
-                    if pv[0] == inst['val']:
-                        index = pv[1]
-                        break
-                structs['channels'][chan_name][0].extend([inst['t0'] * dt, None, index, cond])
-                pv_needs_tf[ham_chans[chan_name]] = 1
 
             # ShiftPhase instructions
-            elif inst['name'] == 'fc':
+            if inst['name'] == 'fc':
                 # get current phase value
                 current_phase = 0
                 if len(structs['channels'][chan_name][1]) > 0:
@@ -425,14 +389,6 @@ def experiment_to_structs(experiment, ham_chans, pulse_inds, pulse_to_int, dt, q
 
                 # update max_time
                 max_time = max(max_time, inst['t0'] * dt)
-
-    # If any PVs still need time then they are at the end
-    # and should just go til final time
-    ham_keys = list(ham_chans.keys())
-    for idx, pp in enumerate(pv_needs_tf):
-        if pp:
-            structs['channels'][ham_keys[idx]][0][-3] = max_time
-            pv_needs_tf[idx] = 0
 
     # Convert lists to numpy arrays
     for key in structs['channels'].keys():

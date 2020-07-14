@@ -231,8 +231,10 @@ class PulseSystemModel():
                 raise ValueError("Channel is not D or U")
         return freqs
 
-    def add_noise(noise_model=None):
+    def add_noise(self, noise_model=None):
         if noise_model:
+            dim_osc = {}
+            dim_qub = self.hamiltonian._subsystem_dims
             noise = NoiseParser(noise_dict=noise_model, dim_osc=dim_osc, dim_qub=dim_qub)
             noise.parse()
 
@@ -304,18 +306,13 @@ class PulseSystemModel():
         experiment exp
         """
 
-        # if _rhs_dict has not been set up, config the internal data
-        if self._rhs_dict is None:
-            self._config_internal_data()
+        self._config_internal_data()
 
         channels = dict(self.hamiltonian._channels)
 
         # Init register
         register = np.ones(self.n_registers, dtype=np.uint8)
 
-        ode_rhs_obj = get_ode_rhs_functor(self._rhs_dict, exp, self.hamiltonian._system, channels, register)
-
-        def rhs(t, y):
-            return ode_rhs_obj(t, y)
+        rhs = get_ode_rhs_functor(self._rhs_dict, exp, self.hamiltonian._system, channels, register)
 
         return rhs

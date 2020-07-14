@@ -71,13 +71,16 @@ def pulse_controller(qobj, system_model, backend_options):
         raise ValueError('Model must have a Hamiltonian to simulate.')
     ham_model = system_model.hamiltonian
 
+    '''
+    remove this
+    '''
     # Extract DE model information
-    pulse_de_model.system = ham_model._system
-    pulse_de_model.variables = ham_model._variables
-    pulse_de_model.channels = ham_model._channels
-    pulse_de_model.h_diag = ham_model._h_diag
-    pulse_de_model.evals = ham_model._evals
-    pulse_de_model.estates = ham_model._estates
+    #pulse_de_model.system = ham_model._system
+    #pulse_de_model.variables = ham_model._variables
+    #pulse_de_model.channels = ham_model._channels
+    #pulse_de_model.h_diag = ham_model._h_diag
+    #pulse_de_model.evals = ham_model._evals
+    #pulse_de_model.estates = ham_model._estates
     dim_qub = ham_model._subsystem_dims
     dim_osc = {}
     # convert estates into a Qutip qobj
@@ -95,12 +98,16 @@ def pulse_controller(qobj, system_model, backend_options):
 
     pulse_de_model.dt = system_model.dt
 
+    '''
+    remove this
+    '''
     # Parse noise
     if noise_model:
-        noise = NoiseParser(noise_dict=noise_model, dim_osc=dim_osc, dim_qub=dim_qub)
-        noise.parse()
+        #noise = NoiseParser(noise_dict=noise_model, dim_osc=dim_osc, dim_qub=dim_qub)
+        #noise.parse()
 
-        pulse_de_model.noise = noise.compiled
+        #pulse_de_model.noise = noise.compiled
+        system_model.add_noise(noise_model)
         if any(pulse_de_model.noise):
             pulse_sim_desc.can_sample = False
 
@@ -108,7 +115,7 @@ def pulse_controller(qobj, system_model, backend_options):
     # ### Parse qobj_config settings
     # ###############################
     digested_qobj = digest_pulse_qobj(qobj,
-                                      pulse_de_model.channels,
+                                      ham_model._channels,
                                       system_model.dt,
                                       qubit_list,
                                       backend_options)
@@ -120,11 +127,18 @@ def pulse_controller(qobj, system_model, backend_options):
     pulse_sim_desc.memory_slots = digested_qobj.memory_slots
     pulse_sim_desc.memory = digested_qobj.memory
 
+    '''
+    remove this
+    '''
     # extract model-relevant information
-    pulse_de_model.n_registers = digested_qobj.n_registers
-    pulse_de_model.pulse_array = digested_qobj.pulse_array
-    pulse_de_model.pulse_indices = digested_qobj.pulse_indices
-    pulse_de_model.pulse_to_int = digested_qobj.pulse_to_int
+    #pulse_de_model.n_registers = digested_qobj.n_registers
+    #pulse_de_model.pulse_array = digested_qobj.pulse_array
+    #pulse_de_model.pulse_indices = digested_qobj.pulse_indices
+    #pulse_de_model.pulse_to_int = digested_qobj.pulse_to_int
+    system_model.n_registers = digested_qobj.n_registers
+    system_model.pulse_array = digested_qobj.pulse_array
+    system_model.pulse_indices = digested_qobj.pulse_indices
+    system_model.pulse_to_int = digested_qobj.pulse_to_int
 
     pulse_sim_desc.experiments = digested_qobj.experiments
 
@@ -139,9 +153,14 @@ def pulse_controller(qobj, system_model, backend_options):
     if qubit_lo_freq is None:
         qubit_lo_freq = system_model.hamiltonian.get_qubit_lo_from_drift()
         warn('Warning: qubit_lo_freq was not specified in PulseQobj or in PulseSystemModel, ' +
-             'so it is beign automatically determined from the drift Hamiltonian.')
+             'so it is being automatically determined from the drift Hamiltonian.')
 
-    pulse_de_model.freqs = system_model.calculate_channel_frequencies(qubit_lo_freq=qubit_lo_freq)
+    '''
+    remove this
+    '''
+    #pulse_de_model.freqs = system_model.calculate_channel_frequencies(qubit_lo_freq=qubit_lo_freq)
+    system_model.freqs = system_model.calculate_channel_frequencies(qubit_lo_freq=qubit_lo_freq)
+
 
     # ###############################
     # ### Parse backend_options
@@ -163,12 +182,12 @@ def pulse_controller(qobj, system_model, backend_options):
     # Set the ODE solver max step to be the half the
     # width of the smallest pulse
     min_width = np.iinfo(np.int32).max
-    for key, val in pulse_de_model.pulse_to_int.items():
+    for key, val in system_model.pulse_to_int.items():
         if key != 'pv':
-            stop = pulse_de_model.pulse_indices[val + 1]
-            start = pulse_de_model.pulse_indices[val]
+            stop = system_model.pulse_indices[val + 1]
+            start = system_model.pulse_indices[val]
             min_width = min(min_width, stop - start)
-    solver_options.de_options.max_step = min_width / 2 * pulse_de_model.dt
+    solver_options.de_options.max_step = min_width / 2 * system_model.dt
 
     # ########################################
     # Determination of measurement operators.
@@ -201,7 +220,7 @@ def pulse_controller(qobj, system_model, backend_options):
 
     run_experiments = (run_unitary_experiments if pulse_sim_desc.can_sample
                        else run_monte_carlo_experiments)
-    exp_results, exp_times = run_experiments(pulse_sim_desc, pulse_de_model, solver_options)
+    exp_results, exp_times = run_experiments(pulse_sim_desc, system_model, solver_options)
 
     return format_exp_results(exp_results, exp_times, pulse_sim_desc)
 

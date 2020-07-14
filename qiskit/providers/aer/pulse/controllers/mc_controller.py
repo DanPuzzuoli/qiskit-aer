@@ -43,7 +43,7 @@ def run_monte_carlo_experiments(pulse_sim_desc, pulse_de_model, solver_options=N
     Raises:
         Exception: if initial state is of incorrect format
     """
-
+    import pdb; pdb.set_trace()
     solver_options = PulseSimOptions() if solver_options is None else solver_options
 
     if not pulse_sim_desc.initial_state.isket:

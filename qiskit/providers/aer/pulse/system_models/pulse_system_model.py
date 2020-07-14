@@ -354,5 +354,5 @@ class PulseSystemModel():
         register = np.ones(self.n_registers, dtype=np.uint8)
 
         rhs = get_ode_rhs_functor(self._rhs_dict, exp, self.hamiltonian._system, channels, register)
-
+        
         return rhs

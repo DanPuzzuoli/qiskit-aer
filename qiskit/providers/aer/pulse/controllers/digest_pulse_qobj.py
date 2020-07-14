@@ -116,8 +116,7 @@ def digest_pulse_qobj(qobj, channels, dt, qubit_list, backend_options=None):
         digested_qobj.qubit_lo_freq = [freq * 1e9 for freq in qobj_config['qubit_lo_freq']]
 
     # build pulse arrays from qobj
-    pulses, pulses_idx, pulse_dict = build_pulse_arrays(qobj_dict['experiments'],
-                                                        qobj_config['pulse_library'])
+    pulses, pulses_idx, pulse_dict = build_pulse_arrays(qobj_config['pulse_library'])
 
     digested_qobj.pulse_array = pulses
     digested_qobj.pulse_indices = pulses_idx
@@ -191,13 +190,12 @@ def _contains_pv_instruction(experiments):
     return False
 
 
-def build_pulse_arrays(experiments, pulse_library):
+def build_pulse_arrays(pulse_library):
     """ Build pulses and pulse_idx arrays, and a pulse_dict
     used in simulations and mapping of experimental pulse
     sequencies to pulse_idx sequencies and timings.
 
     Parameters:
-        experiments (list): list of experiments
         pulse_library (list): list of pulses
 
     Returns:

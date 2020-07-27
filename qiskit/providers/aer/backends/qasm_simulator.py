@@ -28,6 +28,7 @@ from qiskit.providers.aer.backends.controller_wrappers import qasm_controller_ex
 
 logger = logging.getLogger(__name__)
 
+
 class QasmSimulator(AerBackend):
     """
     Noisy quantum circuit simulator backend.

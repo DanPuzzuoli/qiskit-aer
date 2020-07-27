@@ -14,6 +14,7 @@
 """
 Qiskit Aer simulator backend utils
 """
+import os
 from math import log2
 from qiskit.util import local_hardware_info
 from qiskit.circuit import QuantumCircuit
@@ -25,6 +26,18 @@ SYSTEM_MEMORY_GB = local_hardware_info()['memory']
 # Max number of qubits for complex double statevector
 # given available system memory
 MAX_QUBITS_STATEVECTOR = int(log2(SYSTEM_MEMORY_GB * (1024**3) / 16))
+
+# Location where we put external libraries that will be
+# loaded at runtime by the simulator extension
+LIBRARY_DIR = os.path.dirname(__file__)
+
+
+def cpp_execute(controller, qobj):
+    """Execute qobj_dict on C++ controller wrapper"""
+    # Location where we put external libraries that will be
+    # loaded at runtime by the simulator extension
+    qobj['config']['library_dir'] = LIBRARY_DIR
+    return controller(qobj)
 
 
 def available_methods(controller, methods):
@@ -45,7 +58,7 @@ def available_methods(controller, methods):
         qobj = assemble(dummy_circ,
                         optimization_level=0,
                         method=method).to_dict()
-        result = controller(qobj)
+        result = cpp_execute(controller, qobj)
         if result.get('success', False):
             valid_methods.append(method)
     return valid_methods

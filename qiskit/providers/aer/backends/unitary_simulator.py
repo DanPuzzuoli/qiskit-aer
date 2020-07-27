@@ -21,6 +21,7 @@ from qiskit.providers.models import QasmBackendConfiguration
 
 from qiskit.providers.aer.backends.aerbackend import AerBackend
 from qiskit.providers.aer.backends.backend_utils import (backend_gates,
+                                                         cpp_execute,
                                                          available_methods,
                                                          MAX_QUBITS_STATEVECTOR
                                                          )
@@ -162,7 +163,7 @@ class UnitarySimulator(AerBackend):
             else:
                 controller_input['config'][key] = val
         # Execute on controller
-        return unitary_controller_execute(controller_input)
+        return cpp_execute(unitary_controller_execute, controller_input)
 
     def _validate(self, qobj, options):
         """Semantic validations of the qobj which cannot be done via schemas.

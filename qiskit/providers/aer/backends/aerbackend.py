@@ -17,7 +17,6 @@ import copy
 import json
 import logging
 import datetime
-import os
 import time
 import warnings
 from abc import ABC, abstractmethod
@@ -33,10 +32,6 @@ from qiskit.providers.aer.aererror import AerError
 
 # Logger
 logger = logging.getLogger(__name__)
-
-# Location where we put external libraries that will be
-# loaded at runtime by the simulator extension
-LIBRARY_DIR = os.path.dirname(__file__)
 
 
 class AerJSONEncoder(json.JSONEncoder):
@@ -283,10 +278,6 @@ class AerBackend(BaseBackend, ABC):
         """Return execution sim config dict from backend options."""
         # Get sim config
         run_config = self._options.copy()
-
-        # Location where we put external libraries that will be
-        # loaded at runtime by the simulator extension
-        run_config['library_dir'] = LIBRARY_DIR
 
         # DEPRECATED backend options
         if backend_options is not None:

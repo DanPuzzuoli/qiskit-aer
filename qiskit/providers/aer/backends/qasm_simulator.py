@@ -17,6 +17,7 @@ import logging
 from qiskit.providers.models import QasmBackendConfiguration
 from qiskit.providers.aer.backends.aerbackend import AerBackend
 from qiskit.providers.aer.backends.backend_utils import (backend_gates,
+                                                         cpp_execute,
                                                          available_methods,
                                                          MAX_QUBITS_STATEVECTOR
                                                          )
@@ -26,7 +27,6 @@ from qiskit.providers.aer.version import __version__
 from qiskit.providers.aer.backends.controller_wrappers import qasm_controller_execute
 
 logger = logging.getLogger(__name__)
-
 
 class QasmSimulator(AerBackend):
     """
@@ -291,7 +291,7 @@ class QasmSimulator(AerBackend):
             else:
                 controller_input['config'][key] = val
         # Execute on controller
-        return qasm_controller_execute(controller_input)
+        return cpp_execute(qasm_controller_execute, controller_input)
 
     def _set_option(self, key, value):
         """Set the simulation method and update configuration.

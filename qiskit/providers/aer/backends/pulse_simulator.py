@@ -31,7 +31,7 @@ DEFAULT_CONFIGURATION = {
     'coupling_map': None,
     'url': 'https://github.com/Qiskit/qiskit-aer',
     'simulator': True,
-    'meas_levels': [0, 1, 2],
+    'meas_levels': [1, 2],
     'local': True,
     'conditional': True,
     'open_pulse': True,
@@ -97,15 +97,27 @@ class PulseSimulator(AerBackend):
       are ``'atol'``, ``'rtol'``, ``'nsteps'``, ``'max_step'``, ``'num_cpus'``, ``'norm_tol'``,
       and ``'norm_steps'``.
     """
-    def __init__(self, provider=None, **backend_options):
+    def __init__(self,
+                 configuration=None,
+                 properties=None,
+                 defaults=None,
+                 provider=None,
+                 **backend_options):
 
-        # purpose of defaults is to pass assemble checks
-        self._defaults = PulseDefaults(qubit_freq_est=[inf],
-                                       meas_freq_est=[inf],
-                                       buffer=0,
-                                       cmd_def=[],
-                                       pulse_library=[])
-        super().__init__(BackendConfiguration.from_dict(DEFAULT_CONFIGURATION),
+        if configuration is None:
+            configuration = BackendConfiguration.from_dict(
+                DEFAULT_CONFIGURATION)
+
+        if defaults is None:
+            defaults = PulseDefaults(qubit_freq_est=[inf],
+                                     meas_freq_est=[inf],
+                                     buffer=0,
+                                     cmd_def=[],
+                                     pulse_library=[])
+
+        super().__init__(configuration,
+                         properties=properties,
+                         defaults=defaults,
                          provider=provider,
                          backend_options=backend_options)
 

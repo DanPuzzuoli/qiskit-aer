@@ -17,11 +17,8 @@ import logging
 from qiskit.util import local_hardware_info
 from qiskit.providers.models import QasmBackendConfiguration
 from qiskit.providers.aer.backends.aerbackend import AerBackend
-from qiskit.providers.aer.backends.backend_utils import (backend_gates,
-                                                         cpp_execute,
-                                                         available_methods,
-                                                         MAX_QUBITS_STATEVECTOR
-                                                         )
+from qiskit.providers.aer.backends.backend_utils import (
+    backend_gates, cpp_execute, available_methods, MAX_QUBITS_STATEVECTOR)
 from qiskit.providers.aer.aererror import AerError
 from qiskit.providers.aer.version import __version__
 # pylint: disable=import-error, no-name-in-module
@@ -102,7 +99,11 @@ class StatevectorSimulator(AerBackend):
     # Cache available methods
     _AVAILABLE_METHODS = None
 
-    def __init__(self, provider=None, **backend_options):
+    def __init__(self,
+                 configuration=None,
+                 properties=None,
+                 provider=None,
+                 **backend_options):
 
         if StatevectorSimulator._AVAILABLE_METHODS is None:
             StatevectorSimulator._AVAILABLE_METHODS = available_methods(
@@ -110,9 +111,12 @@ class StatevectorSimulator(AerBackend):
                     'automatic', 'statevector', 'statevector_gpu',
                     'statevector_thrust'
                 ])
-
+        if configuration is None:
+            configuration = QasmBackendConfiguration.from_dict(
+                DEFAULT_CONFIGURATION)
         super().__init__(
-            QasmBackendConfiguration.from_dict(DEFAULT_CONFIGURATION),
+            configuration,
+            properties=properties,
             available_methods=StatevectorSimulator._AVAILABLE_METHODS,
             provider=provider,
             backend_options=backend_options)

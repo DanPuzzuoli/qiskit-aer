@@ -16,11 +16,8 @@ Qiskit Aer qasm simulator backend.
 import logging
 from qiskit.providers.models import QasmBackendConfiguration
 from qiskit.providers.aer.backends.aerbackend import AerBackend
-from qiskit.providers.aer.backends.backend_utils import (backend_gates,
-                                                         cpp_execute,
-                                                         available_methods,
-                                                         MAX_QUBITS_STATEVECTOR
-                                                         )
+from qiskit.providers.aer.backends.backend_utils import (
+    backend_gates, cpp_execute, available_methods, MAX_QUBITS_STATEVECTOR)
 from qiskit.providers.aer.noise.noise_model import NoiseModel
 from qiskit.providers.aer.version import __version__
 # pylint: disable=import-error, no-name-in-module
@@ -236,7 +233,11 @@ class QasmSimulator(AerBackend):
     # Cache available methods
     _AVAILABLE_METHODS = None
 
-    def __init__(self, provider=None, **backend_options):
+    def __init__(self,
+                 configuration=None,
+                 properties=None,
+                 provider=None,
+                 **backend_options):
 
         # Update available methods for class
         if QasmSimulator._AVAILABLE_METHODS is None:
@@ -248,30 +249,39 @@ class QasmSimulator(AerBackend):
                     'stabilizer', 'matrix_product_state', 'extended_stabilizer'
                 ])
 
-        super().__init__(self._method_configuration(),
+        if configuration is None:
+            configuration = self._method_configuration()
+
+        super().__init__(configuration,
+                         properties=properties,
                          available_methods=QasmSimulator._AVAILABLE_METHODS,
                          provider=provider,
                          backend_options=backend_options)
 
     @classmethod
-    def from_backend(cls, backend, **options):
+    def from_backend(cls, backend=None, noise=True, **options):
         """Initialize simulator from backend."""
+        # Get configuration and properties from backend
         configuration = backend.configuration()
-        basis_gates = configuration.basis_gates
-        coupling_map = configuration.coupling_map
-        n_qubits = configuration.n_qubits
-        backend_name = 'qasm_simulator({})'.format(configuration.backend_name)
-        noise_model = NoiseModel.from_backend(backend)
-        if noise_model.is_ideal():
-            # Don't include noise model
-            noise_model = None
+        properties = backend.properties()
+
+        # Customize configuration name
+        name = configuration.backend_name
+        configuration.backend_name = 'qasm_simulator({})'.format(name)
+
+        # Get noise model
+        # TODO: add support for NoiseModel kwargs and disabling noise
+        if noise:
+            noise_model = NoiseModel.from_backend(backend)
+            if noise_model.is_ideal():
+                noise_model = None
         else:
-            basis_gates = list(set(basis_gates + noise_model.basis_gates))
-        sim = cls(noise_model=noise_model,
-                  basis_gates=basis_gates,
-                  coupling_map=coupling_map,
-                  n_qubits=n_qubits,
-                  backend_name=backend_name,
+            noise_model = None
+
+        # Initialize simulator
+        sim = cls(configuration=configuration,
+                  properties=properties,
+                  noise_model=noise_model,
                   **options)
         return sim
 
@@ -307,15 +317,16 @@ class QasmSimulator(AerBackend):
         # If key is noise_model we also change the simulator config
         # to use the noise_model basis gates by default.
         if key == 'noise_model':
-            self._configuration.basis_gates = value.basis_gates
-            self._configuration.gates = backend_gates(value.basis_gates)
+            super()._set_option('basis_gates', value.basis_gates)
+            super()._set_option('gates', backend_gates(value.basis_gates))
 
         # If key is method we update our configurations
         if key == 'method':
             method_config = self._method_configuration(value)
-            self._configuration.description = method_config.description
-            self._configuration.backend_name = method_config.backend_name
-            self._configuration.n_qubits = method_config.n_qubits
+            super()._set_option('description', method_config.description)
+            super()._set_option('backend_name', method_config.backend_name)
+            super()._set_option('n_qubits', method_config.n_qubits)
+
             # Take intersection of method basis gates and noise model basis gates
             # if there is a noise model which has already set the basis gates
             basis_gates = method_config.basis_gates
@@ -323,9 +334,10 @@ class QasmSimulator(AerBackend):
                 noise_basis_gates = self.options['noise_model'].basis_gates
                 basis_gates = list(
                     set(basis_gates).intersection(noise_basis_gates))
-            self._configuration.basis_gates = basis_gates
-            self._configuration.gates = method_config.gates
-        # Use AerBackend
+            super()._set_option('basis_gates', basis_gates)
+            super()._set_option('gates', method_config.gates)
+
+        # Set all other options from AerBackend
         super()._set_option(key, value)
 
     def _validate(self, qobj, options):

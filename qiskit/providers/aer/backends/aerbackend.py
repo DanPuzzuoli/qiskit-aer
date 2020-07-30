@@ -59,6 +59,8 @@ class AerBackend(BaseBackend, ABC):
     """Qiskit Aer Backend class."""
     def __init__(self,
                  configuration,
+                 properties=None,
+                 defaults=None,
                  available_methods=None,
                  backend_options=None,
                  provider=None):
@@ -70,23 +72,28 @@ class AerBackend(BaseBackend, ABC):
 
         Args:
             configuration (BackendConfiguration): backend configuration.
-            available_methods (list or None): the available simulation methods if
-                                              backend is configurable.
-            provider (BaseProvider): provider responsible for this backend.
-            backend_options (dict or None): set the default backend options.
+            properties (BackendProperties or None): Optional, backend properties.
+            defaults (PulseDefaults or None): Optional, backend pulse defaults.
+            available_methods (list or None): Optional, the available simulation methods
+                                              if backend supports multiple methods.
+            provider (BaseProvider): Optional, provider responsible for this backend.
+            backend_options (dict or None): Optional set custom backend options.
 
         Raises:
             AerError: if there is no name in the configuration
         """
-        # Initialize backend configuration.
-        # The default configuration settings are stored in
-        # `self._default_configuration`, and any custom configured options
-        # are stored in `self._configuration`. The default values can be
-        # restored from the default configuration using `reset_options`
-        # method
-        self._default_configuration = configuration
-        super().__init__(copy.copy(self._default_configuration),
-                         provider=provider)
+        # Init configuration and provider in BaseBackend
+        super().__init__(configuration, provider=provider)
+
+        # Initialize backend properties and pulse defaults.
+        self._properties = properties
+        self._defaults = defaults
+
+        # Custom configuration, properties, and pulse defaults which will store
+        # any configured modifications to the base simulator values.
+        self._custom_configuration = None
+        self._custom_properties = None
+        self._custom_defaults = None
 
         # Set available methods
         if available_methods is None:
@@ -150,6 +157,38 @@ class AerBackend(BaseBackend, ABC):
         aer_job.submit()
         return aer_job
 
+    def configuration(self):
+        """Return the simulator backend configuration.
+
+        Returns:
+            BackendConfiguration: the configuration for the backend.
+        """
+        if self._custom_configuration is not None:
+            return self._custom_configuration
+        return self._configuration
+
+    def properties(self):
+        """Return the simulator backend properties if set.
+
+        Returns:
+            BackendProperties: The backend properties or ``None`` if the
+                               backend does not have properties set.
+        """
+        if self._custom_properties is not None:
+            return self._custom_properties
+        return self._properties
+
+    def defaults(self):
+        """Return the simulator backend pulse defaults.
+
+        Returns:
+            PulseDefaults: The backend pulse defaults or ``None`` if the
+                           backend does not support pulse.
+        """
+        if self._custom_defaults is not None:
+            return self._custom_defaults
+        return self._defaults
+
     @property
     def options(self):
         """Return the current simulator options"""
@@ -160,9 +199,11 @@ class AerBackend(BaseBackend, ABC):
         for key, val in backend_options.items():
             self._set_option(key, val)
 
-    def reset_options(self):
+    def clear_options(self):
         """Reset the simulator options to default values."""
-        self._configuration = self._default_configuration.copy()
+        self._custom_configuration = None
+        self._custom_properties = None
+        self._custom_defaults = None
         self._options = {}
 
     def available_methods(self):
@@ -253,22 +294,37 @@ class AerBackend(BaseBackend, ABC):
         Raises:
             AerError: if key is 'method' and val isn't in available methods.
         """
-        # If they key basis gates or coupling map we update the config
-        if key == 'backend_name':
-            self._configuration.backend_name = value
+        # Check for key in configuration, properties, and defaults
+        # If the key requires modification of one of these fields a copy
+        # will be generated that can store the modified values without
+        # changing the original object
+        if hasattr(self._configuration, key):
+            if self._custom_configuration is None:
+                self._custom_configuration = copy.copy(self._configuration)
+            setattr(self._custom_configuration, key, value)
             return
-        if key == 'basis_gates':
-            self._configuration.basis_gates = value
+
+        if hasattr(self._properties, key):
+            if self._custom_properties is None:
+                self._custom_properties = copy.copy(self._properties)
+            setattr(self._custom_properties, key, value)
             return
-        if key == 'coupling_map':
-            self._configuration.coupling_map = value
+
+        if hasattr(self._defaults, key):
+            if self._custom_defaults is None:
+                self._custom_defaults = copy.copy(self._defaults)
+            setattr(self._custom_defaults, key, value)
             return
 
         # If key is method, we validate it is one of the available methods
         if key == 'method' and value not in self._available_methods:
             raise AerError("Invalid simulation method {}. Available methods"
                            " are: {}".format(value, self._available_methods))
-        # Add to options dict
+
+        # Add all other options to the options dict
+        # TODO: in the future this could be replaced with an options class
+        #       for the simulators like configuration/properties to show all
+        #       available options
         self._options[key] = value
 
     def _run_config(

@@ -16,11 +16,14 @@ Qiskit Aer pulse simulator backend.
 
 import logging
 from numpy import inf
+from warnings import warn
 from qiskit.providers.models import BackendConfiguration, PulseDefaults
 from qiskit.providers.aer.backends.aerbackend import AerBackend
 from qiskit.providers.aer.pulse.controllers.pulse_controller import pulse_controller
 from qiskit.providers.aer.pulse.system_models.pulse_system_model import PulseSystemModel
 from qiskit.providers.aer.version import __version__
+
+from qiskit.providers.aer.aererror import AerError
 
 logger = logging.getLogger(__name__)
 
@@ -31,22 +34,23 @@ DEFAULT_CONFIGURATION = {
     'coupling_map': None,
     'url': 'https://github.com/Qiskit/qiskit-aer',
     'simulator': True,
-    'meas_levels': [0, 1, 2],
+    'meas_levels': [1, 2],
     'local': True,
     'conditional': True,
     'open_pulse': True,
     'memory': False,
     'max_shots': int(1e6),
-    'description': 'A pulse-based Hamiltonian simulator for Pulse Qobj files',
+    'description': 'A pulse-based simulator for Pulse Qobj files',
     'gates': [],
-    'basis_gates': []
+    'basis_gates': [],
+    'meas_map': None
 }
 
 
 class PulseSimulator(AerBackend):
     r"""Pulse schedule simulator backend.
 
-    The ``PulseSimulator`` simulates continuous time Hamiltonian dynamics of a quantum system,
+    The ``PulseSimulator`` simulates continuous time dynamics of a quantum system,
     with controls specified by pulse :class:`~qiskit.Schedule` objects, and the model of the
     physical system specified by :class:`~qiskit.providers.aer.pulse.PulseSystemModel` objects.
     Results are returned in the same format as when jobs are submitted to actual devices.
@@ -97,28 +101,42 @@ class PulseSimulator(AerBackend):
       are ``'atol'``, ``'rtol'``, ``'nsteps'``, ``'max_step'``, ``'num_cpus'``, ``'norm_tol'``,
       and ``'norm_steps'``.
     """
-    def __init__(self, provider=None, **backend_options):
+    def __init__(self, configuration=None, defaults=None, provider=None, **backend_options):
 
-        # purpose of defaults is to pass assemble checks
-        self._defaults = PulseDefaults(qubit_freq_est=[inf],
-                                       meas_freq_est=[inf],
-                                       buffer=0,
-                                       cmd_def=[],
-                                       pulse_library=[])
-        super().__init__(BackendConfiguration.from_dict(DEFAULT_CONFIGURATION),
-                         provider=provider,
-                         backend_options=backend_options)
+        if configuration is None:
+            configuration = BackendConfiguration.from_dict(DEFAULT_CONFIGURATION)
+
+        if defaults is None:
+            defaults = PulseDefaults(qubit_freq_est=[inf],
+                                     meas_freq_est=[inf],
+                                     buffer=0,
+                                     cmd_def=[],
+                                     pulse_library=[])
+
+        super().__init__(configuration,
+                         provider=provider)
+
+        self._defaults = defaults#.copy()
+        self._properties = None
+
+        self.set_options(**backend_options)
+
+        #self._default_configuration = self._configuration.copy()
+        #self._default_defaults = self._defaults.copy()
 
     @classmethod
     def from_backend(cls, backend, **options):
         """Initialize simulator from backend."""
-        configuration = backend.configuration()
-        coupling_map = configuration.coupling_map
-        backend_name = 'pulse_simulator({})'.format(configuration.backend_name)
+
+        if not backend._configuration.open_pulse:
+            AerError('Attempted to instantiate PulseSimulator from a non-pulse backend.')
+
+        backend_name = 'pulse_simulator({})'.format(backend._configuration.backend_name)
         system_model = PulseSystemModel.from_backend(backend,
                                                      subsystem_list=None)
-        sim = cls(system_model=system_model,
-                  coupling_map=coupling_map,
+        sim = cls(configuration=backend.configuration(),
+                  defaults=backend.defaults(),
+                  system_model=system_model,
                   backend_name=backend_name,
                   **options)
         return sim
@@ -143,3 +161,28 @@ class PulseSimulator(AerBackend):
             PulseDefaults: object for passing assemble.
         """
         return self._defaults
+
+    def _set_option(self, key, value):
+
+        if hasattr(self._configuration, key):
+            if key == 'meas_levels':
+                # 0 is not supported, so remove it from specified level with a warning
+                if 0 in value:
+                    warn('Measurement level 0 not supported in pulse simulator.')
+                    value = value.copy()
+                    value.remove(0)
+
+            setattr(self._configuration, key, value)
+
+        elif hasattr(self._defaults, key):
+            setattr(self._defaults, key, value)
+
+        elif hasattr(self._properties, key):
+            setattr(self._properties, key, value)
+        else:
+            self._options[key] = value
+
+    def reset_options(self):
+        self._configure = self._default_configuration.copy()
+        self._defaults = self.default_pulse_defaults.copy()
+        self._options = {}

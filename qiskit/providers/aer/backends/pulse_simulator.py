@@ -114,6 +114,9 @@ class PulseSimulator(AerBackend):
                                      cmd_def=[],
                                      pulse_library=[])
 
+        # this is a bit of a hack to get it to re-add meas levels
+        backend_options['meas_levels'] = configuration.meas_levels
+
         super().__init__(configuration,
                          properties=properties,
                          defaults=defaults,
@@ -147,6 +150,11 @@ class PulseSimulator(AerBackend):
             dict: return a dictionary of results.
         """
         system_model = run_config['system_model']
+
+        # add lo_freq defaults to optional argument dictionary
+        sim_options = {**run_config,
+                       'qubit_freq_est': self._defaults.qubit_freq_est,
+                       'meas_freq_est': self._defaults.meas_freq_est}
         return pulse_controller(qobj, system_model, run_config)
 
     def defaults(self):

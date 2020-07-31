@@ -30,8 +30,6 @@ class PulseSystemModel():
 
         * ``"hamiltonian"``: a :class:`HamiltonianModel` object representing the
           Hamiltonian of the system.
-        * ``"qubit_freq_est"`` and ``"meas_freq_est"``: optional default values for
-          qubit and measurement frequencies.
         * ``"u_channel_lo"``: A description of :class:`ControlChannel` local oscillator
           frequencies in terms of qubit local oscillator frequencies.
         * ``"control_channel_labels"``: Optional list of identifying information for
@@ -55,8 +53,6 @@ class PulseSystemModel():
     """
     def __init__(self,
                  hamiltonian=None,
-                 qubit_freq_est=None,
-                 meas_freq_est=None,
                  u_channel_lo=None,
                  control_channel_labels=None,
                  subsystem_list=None,
@@ -65,10 +61,6 @@ class PulseSystemModel():
 
         Args:
             hamiltonian (HamiltonianModel): The Hamiltonian of the system.
-            qubit_freq_est (list): list of qubit lo frequencies defaults to be used in simulation
-                                   if none are specified in the PulseQobj.
-            meas_freq_est (list): list of qubit meas frequencies defaults to be used in simulation
-                                  if none are specified in the PulseQobj.
             u_channel_lo (list): list of ControlChannel frequency specifications.
             control_channel_labels (list): list of labels for control channels, which can be of
                                            any type.
@@ -77,10 +69,6 @@ class PulseSystemModel():
         Raises:
             AerError: if hamiltonian is not None or a HamiltonianModel
         """
-
-        # default type values
-        self._qubit_freq_est = qubit_freq_est
-        self._meas_freq_est = meas_freq_est
 
         # necessary values
         if hamiltonian is not None and not isinstance(hamiltonian, HamiltonianModel):
@@ -115,10 +103,6 @@ class PulseSystemModel():
 
         if not config.open_pulse:
             raise AerError('{} is not an open pulse backend'.format(backend))
-
-        # draw defaults
-        qubit_freq_est = getattr(defaults, 'qubit_freq_est', None)
-        meas_freq_est = getattr(defaults, 'meas_freq_est', None)
 
         # draw from configuration
         # if no subsystem_list, use all for device
@@ -163,8 +147,6 @@ class PulseSystemModel():
                     control_channel_labels[u_idx] = {'driven_q': drive_idx, 'freq': u_string}
 
         return cls(hamiltonian=hamiltonian,
-                   qubit_freq_est=qubit_freq_est,
-                   meas_freq_est=meas_freq_est,
                    u_channel_lo=u_channel_lo,
                    control_channel_labels=control_channel_labels,
                    subsystem_list=subsystem_list,
@@ -185,13 +167,12 @@ class PulseSystemModel():
         else:
             return self.control_channel_labels.index(label)
 
-    def calculate_channel_frequencies(self, qubit_lo_freq=None):
+    def calculate_channel_frequencies(self, qubit_lo_freq):
         """Calculate frequencies for each channel given qubit_lo_freq.
 
         Args:
-            qubit_lo_freq (list or None): list of qubit linear
-               oscillator drive frequencies. If None these will be calculated
-               using self._qubit_freq_est.
+            qubit_lo_freq (list): list of qubit linear
+               oscillator drive frequencies.
 
         Returns:
             OrderedDict: a dictionary of channel frequencies.
@@ -200,10 +181,7 @@ class PulseSystemModel():
             ValueError: If channel or u_channel_lo are invalid.
         """
         if not qubit_lo_freq:
-            if not self._qubit_freq_est:
-                raise ValueError("No qubit_lo_freq to use.")
-
-            qubit_lo_freq = self._qubit_freq_est
+            raise ValueError("qubit_lo_freq required for function.")
 
         if self.u_channel_lo is None:
             raise ValueError("{} has no u_channel_lo.".format(self.__class__.__name__))

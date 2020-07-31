@@ -155,7 +155,7 @@ class PulseSimulator(AerBackend):
         sim_options = {**run_config,
                        'qubit_freq_est': self._defaults.qubit_freq_est,
                        'meas_freq_est': self._defaults.meas_freq_est}
-        return pulse_controller(qobj, system_model, run_config)
+        return pulse_controller(qobj, system_model, sim_options)
 
     def defaults(self):
         """Return defaults.

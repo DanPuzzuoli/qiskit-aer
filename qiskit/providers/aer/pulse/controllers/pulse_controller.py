@@ -133,7 +133,7 @@ def pulse_controller(qobj, system_model, backend_options):
 
     # if it wasn't specified in the PulseQobj, draw from defaults
     if qubit_lo_freq is None and backend_options['qubit_freq_est'] is not [np.inf]:
-        qubit_lo_freq = system_model._qubit_freq_est
+        qubit_lo_freq = backend_options['qubit_freq_est']
 
     # if still None draw from the Hamiltonian
     if qubit_lo_freq is None:

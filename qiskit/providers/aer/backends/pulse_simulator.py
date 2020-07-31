@@ -105,8 +105,7 @@ class PulseSimulator(AerBackend):
                  **backend_options):
 
         if configuration is None:
-            configuration = BackendConfiguration.from_dict(
-                DEFAULT_CONFIGURATION)
+            configuration = BackendConfiguration.from_dict(DEFAULT_CONFIGURATION)
 
         if defaults is None:
             defaults = PulseDefaults(qubit_freq_est=[inf],
@@ -124,13 +123,15 @@ class PulseSimulator(AerBackend):
     @classmethod
     def from_backend(cls, backend, **options):
         """Initialize simulator from backend."""
-        configuration = backend.configuration()
-        coupling_map = configuration.coupling_map
-        backend_name = 'pulse_simulator({})'.format(configuration.backend_name)
-        system_model = PulseSystemModel.from_backend(backend,
-                                                     subsystem_list=None)
-        sim = cls(system_model=system_model,
-                  coupling_map=coupling_map,
+
+        if not backend._configuration.open_pulse:
+            AerError('Attempted to instantiate PulseSimulator from a non-pulse backend.')
+
+        backend_name = 'pulse_simulator({})'.format(backend._configuration.backend_name)
+        system_model = PulseSystemModel.from_backend(backend, subsystem_list=None)
+        sim = cls(configuration=backend.configuration(),
+                  defaults=backend.defaults(),
+                  system_model=system_model,
                   backend_name=backend_name,
                   **options)
         return sim
@@ -155,3 +156,23 @@ class PulseSimulator(AerBackend):
             PulseDefaults: object for passing assemble.
         """
         return self._defaults
+
+    def _set_option(self, key, value):
+
+        if hasattr(self._configuration, key):
+            if key == 'meas_levels':
+                # 0 is not supported, so remove it from specified level with a warning
+                if 0 in value:
+                    warn('Measurement level 0 not supported in pulse simulator.')
+                    value = value.copy()
+                    value.remove(0)
+
+            setattr(self._configuration, key, value)
+
+        elif hasattr(self._defaults, key):
+            setattr(self._defaults, key, value)
+
+        elif hasattr(self._properties, key):
+            setattr(self._properties, key, value)
+        else:
+            self._options[key] = value

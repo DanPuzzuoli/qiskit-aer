@@ -114,8 +114,9 @@ class PulseSimulator(AerBackend):
                                      cmd_def=[],
                                      pulse_library=[])
 
-        # this is a bit of a hack to get it to re-add meas levels
+        backend_options = backend_options.copy()
         backend_options['meas_levels'] = configuration.meas_levels
+        backend_options['simulator'] = True
 
         super().__init__(configuration,
                          properties=properties,

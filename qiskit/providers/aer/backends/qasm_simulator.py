@@ -16,8 +16,10 @@ Qiskit Aer qasm simulator backend.
 import logging
 from qiskit.providers.models import QasmBackendConfiguration
 from qiskit.providers.aer.backends.aerbackend import AerBackend
-from qiskit.providers.aer.backends.backend_utils import (
-    backend_gates, cpp_execute, available_methods, MAX_QUBITS_STATEVECTOR)
+from qiskit.providers.aer.backends.backend_utils import (cpp_execute,
+                                                         available_methods,
+                                                         MAX_QUBITS_STATEVECTOR
+                                                         )
 from qiskit.providers.aer.noise.noise_model import NoiseModel
 from qiskit.providers.aer.version import __version__
 # pylint: disable=import-error, no-name-in-module
@@ -251,7 +253,6 @@ class QasmSimulator(AerBackend):
 
         if configuration is None:
             configuration = self._method_configuration()
-
         super().__init__(configuration,
                          properties=properties,
                          available_methods=QasmSimulator._AVAILABLE_METHODS,
@@ -259,7 +260,7 @@ class QasmSimulator(AerBackend):
                          backend_options=backend_options)
 
     @classmethod
-    def from_backend(cls, backend=None, noise=True, **options):
+    def from_backend(cls, backend, **options):
         """Initialize simulator from backend."""
         # Get configuration and properties from backend
         configuration = backend.configuration()
@@ -269,19 +270,15 @@ class QasmSimulator(AerBackend):
         name = configuration.backend_name
         configuration.backend_name = 'qasm_simulator({})'.format(name)
 
-        # Get noise model
-        # TODO: add support for NoiseModel kwargs and disabling noise
-        if noise:
+        # Use automatic noise model if none is provided
+        if 'noise_model' not in options:
             noise_model = NoiseModel.from_backend(backend)
-            if noise_model.is_ideal():
-                noise_model = None
-        else:
-            noise_model = None
+            if not noise_model.is_ideal():
+                options['noise_model'] = noise_model
 
         # Initialize simulator
         sim = cls(configuration=configuration,
                   properties=properties,
-                  noise_model=noise_model,
                   **options)
         return sim
 
@@ -316,9 +313,8 @@ class QasmSimulator(AerBackend):
         """
         # If key is noise_model we also change the simulator config
         # to use the noise_model basis gates by default.
-        if key == 'noise_model':
+        if key == 'noise_model' and value is not None:
             super()._set_option('basis_gates', value.basis_gates)
-            super()._set_option('gates', backend_gates(value.basis_gates))
 
         # If key is method we update our configurations
         if key == 'method':
@@ -335,7 +331,6 @@ class QasmSimulator(AerBackend):
                 basis_gates = list(
                     set(basis_gates).intersection(noise_basis_gates))
             super()._set_option('basis_gates', basis_gates)
-            super()._set_option('gates', method_config.gates)
 
         # Set all other options from AerBackend
         super()._set_option(key, value)
@@ -367,7 +362,7 @@ class QasmSimulator(AerBackend):
     def _method_configuration(method=None):
         """Return QasmBackendConfiguration."""
         # Default configuration
-        config = {
+        config = QasmBackendConfiguration.from_dict({
             'backend_name':
             'qasm_simulator',
             'backend_version':
@@ -375,7 +370,7 @@ class QasmSimulator(AerBackend):
             'n_qubits':
             MAX_QUBITS_STATEVECTOR,
             'url':
-            'https://github.com/Qiskit/qiskit-aer',
+            'https://github.com/Qiskit/qiskit-aerß',
             'simulator':
             True,
             'local':
@@ -397,51 +392,47 @@ class QasmSimulator(AerBackend):
                 'sdg', 't', 'tdg', 'swap', 'ccx', 'unitary', 'initialize',
                 'cu1', 'cu2', 'cu3', 'cswap', 'mcx', 'mcy', 'mcz', 'mcu1',
                 'mcu2', 'mcu3', 'mcswap', 'multiplexer', 'kraus', 'roerror'
-            ]
-        }
+            ],
+            'gates': []
+        })
 
         # Statvector methods
         if method in ['statevector', 'statevector_gpu', 'statevector_thrust']:
-            config[
-                'description'] = 'A C++ QasmQobj statevector simulator with noise'
+            config.description = 'A C++ QasmQobj statevector simulator with noise'
 
         # Density Matrix methods
         elif method in [
                 'density_matrix', 'density_matrix_gpu', 'density_matrix_thrust'
         ]:
-            config['n_qubits'] = config['n_qubits'] // 2
-            config[
-                'description'] = 'A C++ QasmQobj density matrix simulator with noise'
-            config['basis_gates'] = [
+            config.n_qubits = config.n_qubits // 2
+            config.description = 'A C++ QasmQobj density matrix simulator with noise'
+            config.basis_gates = [
                 'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's',
                 'sdg', 't', 'tdg', 'swap', 'ccx', 'unitary', 'kraus', 'roerror'
             ]
 
         # Matrix product state method
         elif method == 'matrix_product_state':
-            config[
-                'description'] = 'A C++ QasmQobj matrix product state simulator with noise'
-            config['basis_gates'] = [
+            config.description = 'A C++ QasmQobj matrix product state simulator with noise'
+            config.basis_gates = [
                 'u1', 'u2', 'u3', 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's',
                 'sdg', 't', 'tdg', 'swap', 'ccx', 'unitary', 'roerror'
             ]
 
         # Stabilizer method
         elif method == 'stabilizer':
-            config['n_qubits'] = 5000  # TODO: estimate from memory
-            config[
-                'description'] = 'A C++ QasmQobj Clifford stabilizer simulator with noise'
-            config['basis_gates'] = [
+            config.n_qubits = 5000  # TODO: estimate from memory
+            config.description = 'A C++ QasmQobj Clifford stabilizer simulator with noise'
+            config.basis_gates = [
                 'cx', 'cz', 'id', 'x', 'y', 'z', 'h', 's', 'sdg', 'swap',
                 'roerror'
             ]
 
         # Extended stabilizer method
         elif method == 'extended_stabilizer':
-            config['n_qubits'] = 63  # TODO: estimate from memory
-            config[
-                'description'] = 'A C++ QasmQobj ranked stabilizer simulator with noise'
-            config['basis_gates'] = [
+            config.n_qubits = 63  # TODO: estimate from memory
+            config.description = 'A C++ QasmQobj ranked stabilizer simulator with noise'
+            config.basis_gates = [
                 'cx',
                 'cz',
                 'id',
@@ -459,6 +450,4 @@ class QasmSimulator(AerBackend):
                 'ccz',
             ]
 
-        # Update gates description from basis_gates list
-        config['gates'] = backend_gates(config['basis_gates'])
-        return QasmBackendConfiguration.from_dict(config)
+        return config

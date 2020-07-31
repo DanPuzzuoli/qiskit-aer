@@ -20,8 +20,10 @@ from qiskit.util import local_hardware_info
 from qiskit.providers.models import QasmBackendConfiguration
 
 from qiskit.providers.aer.backends.aerbackend import AerBackend
-from qiskit.providers.aer.backends.backend_utils import (
-    backend_gates, cpp_execute, available_methods, MAX_QUBITS_STATEVECTOR)
+from qiskit.providers.aer.backends.backend_utils import (cpp_execute,
+                                                         available_methods,
+                                                         MAX_QUBITS_STATEVECTOR
+                                                         )
 from qiskit.providers.aer.aererror import AerError
 from qiskit.providers.aer.version import __version__
 # pylint: disable=import-error, no-name-in-module
@@ -80,7 +82,7 @@ DEFAULT_CONFIGURATION = {
     'description': 'A C++ unitary simulator for QASM Qobj files',
     'coupling_map': None,
     'basis_gates': BASIS_GATES,
-    'gates': backend_gates(BASIS_GATES)
+    'gates': []
 }
 
 

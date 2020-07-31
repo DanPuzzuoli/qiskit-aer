@@ -325,7 +325,12 @@ class AerBackend(BaseBackend, ABC):
         # TODO: in the future this could be replaced with an options class
         #       for the simulators like configuration/properties to show all
         #       available options
-        self._options[key] = value
+        if value is not None:
+            # Only add an option if its value is not None
+            self._options[key] = value
+        elif key in self._options:
+            # If setting an existing option to None remove it from options dict
+            self._options.pop(key)
 
     def _run_config(
             self,

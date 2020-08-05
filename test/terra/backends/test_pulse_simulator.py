@@ -27,7 +27,7 @@ from qiskit.providers.aer.backends import PulseSimulator
 from qiskit.compiler import assemble
 from qiskit.quantum_info import state_fidelity
 from qiskit.pulse import (Schedule, Play, ShiftPhase, SetPhase, Delay, Acquire,
-                          SamplePulse, DriveChannel, ControlChannel,
+                          Waveform, DriveChannel, ControlChannel,
                           AcquireChannel, MemorySlot)
 from qiskit.providers.aer.pulse.de.DE_Methods import ScipyODE
 from qiskit.providers.aer.pulse.de.DE_Options import DE_Options
@@ -835,7 +835,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
             with self.subTest(gauss_sigma=gauss_sigma):
                 times = 1.0 * np.arange(total_samples)
                 gaussian_samples = np.exp(-times**2 / 2 / gauss_sigma**2)
-                drive_pulse = SamplePulse(gaussian_samples, name='drive_pulse')
+                drive_pulse = Waveform(gaussian_samples, name='drive_pulse')
 
                 # construct schedule
                 schedule = Schedule()
@@ -903,7 +903,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
 
         # try some random schedule
         schedule = Schedule()
-        drive_pulse = SamplePulse(np.ones(total_samples))
+        drive_pulse = Waveform(np.ones(total_samples))
         schedule += Play(drive_pulse, DriveChannel(0))
         schedule |= Play(drive_pulse, DriveChannel(1)) << 2 * total_samples
 
@@ -965,12 +965,12 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         # so that the x rotation is transformed into a z rotation.
         # if delays are not handled correctly this process should fail
         sched = Schedule()
-        sched += Play(SamplePulse([0.5]), DriveChannel(1))
+        sched += Play(Waveform([0.5]), DriveChannel(1))
         sched += Delay(1, DriveChannel(1))
-        sched += Play(SamplePulse([-0.5]), DriveChannel(1))
+        sched += Play(Waveform([-0.5]), DriveChannel(1))
 
         sched += Delay(1, DriveChannel(0))
-        sched += Play(SamplePulse([1.]), DriveChannel(0))
+        sched += Play(Waveform([1.]), DriveChannel(0))
 
         sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
 
@@ -998,10 +998,10 @@ class TestPulseSimulator(common.QiskitAerTestCase):
 
         # verify validity of simulation when no delays included
         sched = Schedule()
-        sched += Play(SamplePulse([0.5]), DriveChannel(1))
-        sched += Play(SamplePulse([-0.5]), DriveChannel(1))
+        sched += Play(Waveform([0.5]), DriveChannel(1))
+        sched += Play(Waveform([-0.5]), DriveChannel(1))
 
-        sched += Play(SamplePulse([1.]), DriveChannel(0))
+        sched += Play(Waveform([1.]), DriveChannel(0))
 
         sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
 
@@ -1040,15 +1040,15 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         # Also do it in multiple phase shifts to test accumulation
         sched = Schedule()
         amp1 = 0.12
-        sched += Play(SamplePulse([amp1]), DriveChannel(0))
+        sched += Play(Waveform([amp1]), DriveChannel(0))
         phi1 = 0.12374 * np.pi
         sched += ShiftPhase(phi1, DriveChannel(0))
         amp2 = 0.492
-        sched += Play(SamplePulse([amp2]), DriveChannel(0))
+        sched += Play(Waveform([amp2]), DriveChannel(0))
         phi2 = 0.5839 * np.pi
         sched += ShiftPhase(phi2, DriveChannel(0))
         amp3 = 0.12 + 0.21 * 1j
-        sched += Play(SamplePulse([amp3]), DriveChannel(0))
+        sched += Play(Waveform([amp3]), DriveChannel(0))
 
         sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
 
@@ -1081,11 +1081,11 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         # run another schedule with only a single shift phase to verify
         sched = Schedule()
         amp1 = 0.12
-        sched += Play(SamplePulse([amp1]), DriveChannel(0))
+        sched += Play(Waveform([amp1]), DriveChannel(0))
         phi1 = 0.12374 * np.pi
         sched += ShiftPhase(phi1, DriveChannel(0))
         amp2 = 0.492
-        sched += Play(SamplePulse([amp2]), DriveChannel(0))
+        sched += Play(Waveform([amp2]), DriveChannel(0))
         sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
 
         qobj = assemble([sched],
@@ -1125,19 +1125,19 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         # intermix shift and set phase instructions to verify absolute v.s. relative changes
         sched = Schedule()
         amp1 = 0.12
-        sched += Play(SamplePulse([amp1]), DriveChannel(0))
+        sched += Play(Waveform([amp1]), DriveChannel(0))
         phi1 = 0.12374 * np.pi
         sched += ShiftPhase(phi1, DriveChannel(0))
         amp2 = 0.492
-        sched += Play(SamplePulse([amp2]), DriveChannel(0))
+        sched += Play(Waveform([amp2]), DriveChannel(0))
         phi2 = 0.5839 * np.pi
         sched += SetPhase(phi2, DriveChannel(0))
         amp3 = 0.12 + 0.21 * 1j
-        sched += Play(SamplePulse([amp3]), DriveChannel(0))
+        sched += Play(Waveform([amp3]), DriveChannel(0))
         phi3 = 0.1 * np.pi
         sched += ShiftPhase(phi3, DriveChannel(0))
         amp4 = 0.2 + 0.3 * 1j
-        sched += Play(SamplePulse([amp4]), DriveChannel(0))
+        sched += Play(Waveform([amp4]), DriveChannel(0))
 
         sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
 
@@ -1177,7 +1177,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
 
         sched = Schedule()
         sched += SetPhase(np.pi / 2, DriveChannel(0))
-        sched += Play(SamplePulse(np.ones(100)), DriveChannel(0))
+        sched += Play(Waveform(np.ones(100)), DriveChannel(0))
 
         sched |= Acquire(1, AcquireChannel(0), MemorySlot(0)) << sched.duration
 
@@ -1245,7 +1245,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         """
 
         # set up constant pulse for doing a pi pulse
-        drive_pulse = SamplePulse(amp * np.ones(total_samples))
+        drive_pulse = Waveform(amp * np.ones(total_samples))
         schedule = Schedule()
         schedule |= Play(drive_pulse, DriveChannel(0))
         schedule |= Acquire(total_samples, AcquireChannel(0),
@@ -1295,7 +1295,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         """
 
         # set up constant pulse for doing a pi pulse
-        drive_pulse = SamplePulse(amp * np.ones(total_samples))
+        drive_pulse = Waveform(amp * np.ones(total_samples))
         schedule = Schedule()
         schedule |= Play(drive_pulse, ControlChannel(u_idx))
         schedule |= Acquire(total_samples, AcquireChannel(0),
@@ -1355,7 +1355,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         """
 
         # set up constant pulse for doing a pi pulse
-        drive_pulse = SamplePulse(amp * np.ones(total_samples))
+        drive_pulse = Waveform(amp * np.ones(total_samples))
         schedule = Schedule()
         schedule |= Play(drive_pulse, ControlChannel(u_idx))
         for idx in subsystem_list:

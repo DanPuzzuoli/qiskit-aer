@@ -73,8 +73,6 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         r = 0.01
         total_samples = 100
 
-        system_model = self._system_model_1Q(omega_0, r)
-
         # set up constant pulse for doing a pi pulse
         schedule = self._1Q_constant_sched(total_samples)
 
@@ -88,14 +86,16 @@ class TestPulseSimulator(common.QiskitAerTestCase):
                         memory_slots=1,
                         shots=256)
 
-        # set backend backend_options including initial state
+        # set up simulator
+        system_model = self._system_model_1Q(omega_0, r)
         y0 = np.array([1.0, 0.0])
-        backend_options = {'seed': 9000, 'initial_state': y0}
+        seed = 9000
 
-        # run simulation
-        result = self.backend_sim.run(
-            qobj, system_model=system_model,
-            backend_options=backend_options).result()
+        pulse_sim = PulseSimulator(system_model=system_model,
+                                   initial_state=y0,
+                                   seed=seed)
+
+        result = pulse_sim.run(qobj).result()
         pulse_sim_yf = result.get_statevector()
 
         # set up and run independent simulation
@@ -110,8 +110,7 @@ class TestPulseSimulator(common.QiskitAerTestCase):
         approx_yf = phases * np.array([0., -1j])
 
         # test final state
-        self.assertGreaterEqual(state_fidelity(pulse_sim_yf, indep_yf),
-                                1 - 10**-5)
+        self.assertGreaterEqual(state_fidelity(pulse_sim_yf, indep_yf), 1 - 10**-5)
         self.assertGreaterEqual(state_fidelity(pulse_sim_yf, approx_yf), 0.99)
 
         # test counts

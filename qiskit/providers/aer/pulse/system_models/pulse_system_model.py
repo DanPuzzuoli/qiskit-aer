@@ -116,9 +116,21 @@ class PulseSystemModel():
         if not config.open_pulse:
             raise AerError('{} is not an open pulse backend'.format(backend))
 
+        return cls.from_config_and_defaults(config, defaults, subsystem_list)
+
+    @classmethod
+    def from_config_and_defaults(cls, configuration, defaults, subsystem_list=None):
+        """Construct a model from configuration and defaults."""
+
         # draw defaults
         qubit_freq_est = getattr(defaults, 'qubit_freq_est', None)
         meas_freq_est = getattr(defaults, 'meas_freq_est', None)
+
+        if qubit_freq_est == [np.inf]:
+            qubit_freq_est = None
+
+        if meas_freq_est == [np.inf]:
+            qubit_freq_est = None
 
         # draw from configuration
         # if no subsystem_list, use all for device

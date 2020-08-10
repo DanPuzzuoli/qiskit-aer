@@ -181,22 +181,38 @@ class PulseSimulator(AerBackend):
 
     def _set_option(self, key, value):
 
-        if hasattr(self._configuration, key):
+        # first, handle cases that require updating two places
+        if key == 'hamiltonian':
+            # if option is hamiltonian, set in configuration and reconstruct pulse system model
+            setattr(self._configuration, key, value)
+            self._system_model = PulseSystemModel.from_config_and_defaults(self._configuration,
+                                                                           self._defaults)
+        elif key in ['dt', 'u_channel_lo']:
+            # options in both configuration and system_model
+            setattr(self._configuration, key, value)
+            if self._system_model is not None:
+                self._system_model.dt = value
+        elif key in ['qubit_freq_est', 'meas_freq_est']:
+            # options in both defaults and system model
+            setattr(self._defaults, key, value)
+            if self._system_model is not None:
+                setattr(self._system_model, key, value)
+        # if system model is specified directly
+        elif key == 'system_model':
+            if hasattr(self._configuration, 'hamiltonian'):
+                warn('Directly specifying system model may result in inconsistencies.')
+            self._system_model = value
+        # remaining options for backend attributes
+        elif hasattr(self._configuration, key):
             if key == 'meas_levels':
                 _set_config_meas_level(self._configuration, value)
             else:
                 setattr(self._configuration, key, value)
         elif hasattr(self._defaults, key):
             setattr(self._defaults, key, value)
-
         elif hasattr(self._properties, key):
             setattr(self._properties, key, value)
-        elif key == 'system_model':
-            if hasattr(self._configuration, 'hamiltonian'):
-                warn('''Specification of system model with configuration containing a hamiltonian
-                        may result in backend inconsistencies.''')
-
-            self._system_model = value
+        # anything not handled by the above cases
         else:
             self._options[key] = value
 

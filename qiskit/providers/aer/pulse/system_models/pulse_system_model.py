@@ -16,6 +16,7 @@
 "System Model class for system specification for the PulseSimulator"
 
 from warnings import warn
+import numpy as np
 from collections import OrderedDict
 from qiskit.providers import BaseBackend
 from qiskit.providers.aer.aererror import AerError
@@ -134,11 +135,11 @@ class PulseSystemModel():
 
         # draw from configuration
         # if no subsystem_list, use all for device
-        subsystem_list = subsystem_list or list(range(config.n_qubits))
-        ham_string = config.hamiltonian
+        subsystem_list = subsystem_list or list(range(configuration.n_qubits))
+        ham_string = configuration.hamiltonian
         hamiltonian = HamiltonianModel.from_dict(ham_string, subsystem_list)
-        u_channel_lo = getattr(config, 'u_channel_lo', None)
-        dt = getattr(config, 'dt', None)
+        u_channel_lo = getattr(configuration, 'u_channel_lo', None)
+        dt = getattr(configuration, 'dt', None)
 
         control_channel_labels = [None] * len(u_channel_lo)
         # populate control_channel_dict

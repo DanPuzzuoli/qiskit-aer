@@ -38,7 +38,10 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
 
     def test_bare_instance(self):
         """Test behaviour of PulseSimulator instance with no configuration or defaults."""
-        self.assertTrue(True)
+
+        pulse_sim = PulseSimulator()
+        
+
 
 
 if __name__ == '__main__':

@@ -15,6 +15,7 @@ PulseSimulator Integration Tests
 
 import sys
 import unittest
+import warnings
 from test.terra import common
 
 from qiskit.test.mock.backends.athens.fake_athens import FakeAthens
@@ -37,11 +38,6 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         """
         if sys.version_info.major == 3 and sys.version_info.minor == 5:
             self.skipTest("We don't support Python 3.5 for Pulse simulator")
-
-    def test_bare_instance(self):
-        """Test behaviour of PulseSimulator instance with no configuration or defaults."""
-
-        pass
 
     def test_from_backend_system_model(self):
         """Test that the system model is correctly imported from the backend."""
@@ -106,6 +102,35 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         sim_attr = athens_sim.defaults().meas_freq_est
         model_attr = athens_sim._system_model._meas_freq_est
         self.assertTrue(sim_attr == set_attr and model_attr == set_attr)
+
+    def test_set_meas_levels(self):
+        """Test setting of meas_levels."""
+
+        athens_backend = FakeAthens()
+        athens_sim = PulseSimulator.from_backend(athens_backend)
+
+        # test that a warning is thrown when meas_level 0 is attempted to be set
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+
+            athens_sim.set_options(meas_levels=[0,1,2])
+
+            self.assertEqual(len(w), 1)
+            self.assertTrue('Measurement level 0 not supported' in str(w[-1].message))
+
+        self.assertTrue(athens_sim.configuration().meas_levels == [1, 2])
+
+        athens_sim.set_options(meas_levels=[2])
+        self.assertTrue(athens_sim.configuration().meas_levels == [2])
+
+    def test_set_system_model(self):
+        """Test setting system model."""
+
+        athens_backend = FakeAthens()
+        athens_sim = PulseSimulator.from_backend(athens_backend)
+
+        test_model = 
 
 
 

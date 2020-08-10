@@ -191,12 +191,12 @@ class PulseSimulator(AerBackend):
             # options in both configuration and system_model
             setattr(self._configuration, key, value)
             if self._system_model is not None:
-                self._system_model.dt = value
+                setattr(self._system_model, key, value)
         elif key in ['qubit_freq_est', 'meas_freq_est']:
             # options in both defaults and system model
             setattr(self._defaults, key, value)
             if self._system_model is not None:
-                setattr(self._system_model, key, value)
+                setattr(self._system_model, '_' + key, value)
         # if system model is specified directly
         elif key == 'system_model':
             if hasattr(self._configuration, 'hamiltonian'):

@@ -127,39 +127,34 @@ class PulseSimulator(AerBackend):
         if properties is not None:
             properties = deepcopy(properties)
 
-        # set up system model
-        subsystem_list = backend_options.get('subsystem_list', None)
-        if system_model is None:
-            if hasattr(configuration, 'hamiltonian'):
-                system_model = PulseSystemModel.from_config_and_defaults(configuration,
-                                                                         defaults,
-                                                                         subsystem_list)
-        else:
-            if hasattr(configuration, 'hamiltonian'):
-                warn('''System model specified both as kwarg and in configuration,
-                        defaulting to kwarg.''')
-
-        self._system_model = system_model
-
         super().__init__(configuration,
                          properties=properties,
                          defaults=defaults,
                          provider=provider,
                          backend_options=backend_options)
 
+        # set up system model
+        subsystem_list = backend_options.get('subsystem_list', None)
+        if system_model is None:
+            if hasattr(configuration, 'hamiltonian'):
+                self._system_model = PulseSystemModel.from_config_and_defaults(configuration,
+                                                                               defaults,
+                                                                               subsystem_list)
+        else:
+            self._set_system_model(system_model)
+
     @classmethod
     def from_backend(cls, backend, **options):
         """Initialize simulator from backend."""
         configuration = backend.configuration()
         defaults = backend.defaults()
-
+        
         backend_name = 'pulse_simulator({})'.format(configuration.backend_name)
         description = 'A Pulse-based simulator configured from the backend: '
         description += configuration.backend_name
 
         sim = cls(configuration=configuration,
                   defaults=defaults,
-                  system_model=None,
                   backend_name=backend_name,
                   description=description,
                   **options)
@@ -199,9 +194,7 @@ class PulseSimulator(AerBackend):
                 setattr(self._system_model, '_' + key, value)
         # if system model is specified directly
         elif key == 'system_model':
-            if hasattr(self._configuration, 'hamiltonian'):
-                warn('Directly specifying system model may result in inconsistencies.')
-            self._system_model = value
+            self._set_system_model(value)
         # remaining options for backend attributes
         elif hasattr(self._configuration, key):
             if key == 'meas_levels':
@@ -215,6 +208,26 @@ class PulseSimulator(AerBackend):
         # anything not handled by the above cases
         else:
             self._options[key] = value
+
+    def _set_system_model(self, system_model):
+        """Set a system model and extract transfer relevant information to configuration and
+        properties.
+        """
+
+        if hasattr(self._configuration, 'hamiltonian'):
+            warn('''Specifying both a configuration with a Hamiltonian and a system model
+                    may result in inconsistencies.''')
+
+        self._system_model = system_model
+
+        # extract default information
+        for key in ['qubit_freq_est', 'meas_freq_est']:
+            setattr(self._defaults, key, getattr(self._system_model, '_' + key, None))
+
+        # extract config information
+        for key in ['dt', 'u_channel_lo']:
+            setattr(self._configuration, key, getattr(self._system_model, key, []))
+
 
 
 def _set_config_meas_level(configuration, meas_levels):

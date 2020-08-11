@@ -1,6 +1,6 @@
 # This code is part of Qiskit.
 #
-# (C) Copyright IBM 2018, 2019.
+# (C) Copyright IBM 2018, 2019, 2020.
 #
 # This code is licensed under the Apache License, Version 2.0. You may
 # obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -10,7 +10,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 """
-PulseSimulator Integration Tests
+Configurable PulseSimulator Tests
 """
 
 import sys
@@ -18,6 +18,7 @@ import unittest
 import warnings
 from test.terra import common
 
+from qiskit.test.mock.backends.armonk.fake_armonk import FakeArmonk
 from qiskit.test.mock.backends.athens.fake_athens import FakeAthens
 
 from qiskit.providers.aer.backends import PulseSimulator
@@ -118,20 +119,138 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
 
             self.assertEqual(len(w), 1)
             self.assertTrue('Measurement level 0 not supported' in str(w[-1].message))
+            self.assertEqual(athens_sim.configuration().meas_levels, [1, 2])
 
         self.assertTrue(athens_sim.configuration().meas_levels == [1, 2])
 
         athens_sim.set_options(meas_levels=[2])
         self.assertTrue(athens_sim.configuration().meas_levels == [2])
 
-    def test_set_system_model(self):
-        """Test setting system model."""
+    def test_set_system_model_from_backend(self):
+        """Test setting system model when constructing from backend."""
 
-        athens_backend = FakeAthens()
-        athens_sim = PulseSimulator.from_backend(athens_backend)
+        armonk_backend = FakeArmonk()
+        system_model = self._system_model_1Q()
 
-        test_model = 
+        # these are 1q systems so this doesn't make sense but can still be used to test
+        system_model.u_channel_lo = [[UchannelLO(0, 1.0 + 0.0j)]]
 
+        armonk_sim = None
+
+        # construct backend and catch warning
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+
+            armonk_sim = PulseSimulator.from_backend(backend=armonk_backend,
+                                                     system_model=system_model)
+
+            self.assertEqual(len(w), 1)
+            self.assertTrue('inconsistencies' in str(w[-1].message))
+
+        # check that system model properties have been imported
+        self.assertEqual(armonk_sim.configuration().dt, system_model.dt)
+        self.assertEqual(armonk_sim.configuration().u_channel_lo, system_model.u_channel_lo)
+        self.assertEqual(armonk_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
+        self.assertEqual(armonk_sim.defaults().meas_freq_est, system_model._meas_freq_est)
+
+    def test_set_system_model_in_constructor(self):
+        """Test setting system model when constructing."""
+
+        system_model = self._system_model_1Q()
+
+        # these are 1q systems so this doesn't make sense but can still be used to test
+        system_model.u_channel_lo = [[UchannelLO(0, 1.0 + 0.0j)]]
+
+        # construct directly
+        test_sim = None
+        # construct backend and verify no warnings
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+
+            test_sim = PulseSimulator(system_model=system_model)
+
+            self.assertEqual(len(w), 0)
+
+        # check that system model properties have been imported
+        self.assertEqual(test_sim.configuration().dt, system_model.dt)
+        self.assertEqual(test_sim.configuration().u_channel_lo, system_model.u_channel_lo)
+        self.assertEqual(test_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
+        self.assertEqual(test_sim.defaults().meas_freq_est, system_model._meas_freq_est)
+
+    def test_set_system_model_after_construction(self):
+        """Test setting the system model after construction."""
+
+        system_model = self._system_model_1Q()
+
+        # these are 1q systems so this doesn't make sense but can still be used to test
+        system_model.u_channel_lo = [[UchannelLO(0, 1.0 + 0.0j)]]
+
+        # first test setting after construction with no hamiltonian
+        test_sim = PulseSimulator()
+
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+
+            test_sim.set_options(system_model=system_model)
+            self.assertEqual(len(w), 0)
+
+        # check that system model properties have been imported
+        self.assertEqual(test_sim._system_model, system_model)
+        self.assertEqual(test_sim.configuration().dt, system_model.dt)
+        self.assertEqual(test_sim.configuration().u_channel_lo, system_model.u_channel_lo)
+        self.assertEqual(test_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
+        self.assertEqual(test_sim.defaults().meas_freq_est, system_model._meas_freq_est)
+
+        # next, construct a pulse simulator with a config containing a Hamiltonian and observe
+        # warnings
+        armonk_backend = FakeArmonk()
+        test_sim = PulseSimulator(configuration=armonk_backend.configuration())
+
+        # add system model and verify warning is raised
+        with warnings.catch_warnings(record=True) as w:
+            # Cause all warnings to always be triggered.
+            warnings.simplefilter("always")
+
+            armonk_sim = test_sim.set_options(system_model=system_model)
+
+            self.assertEqual(len(w), 1)
+            self.assertTrue('inconsistencies' in str(w[-1].message))
+
+        self.assertEqual(test_sim.configuration().dt, system_model.dt)
+        self.assertEqual(test_sim.configuration().u_channel_lo, system_model.u_channel_lo)
+        self.assertEqual(test_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
+        self.assertEqual(test_sim.defaults().meas_freq_est, system_model._meas_freq_est)
+
+    def _system_model_1Q(self, omega_0=5., r=0.02):
+        """Constructs a standard model for a 1 qubit system.
+
+        Args:
+            omega_0 (float): qubit frequency
+            r (float): drive strength
+
+        Returns:
+            PulseSystemModel: model for qubit system
+        """
+
+        hamiltonian = {}
+        hamiltonian['h_str'] = [
+            '2*np.pi*omega0*0.5*Z0', '2*np.pi*r*0.5*X0||D0'
+        ]
+        hamiltonian['vars'] = {'omega0': omega_0, 'r': r}
+        hamiltonian['qub'] = {'0': 2}
+        ham_model = HamiltonianModel.from_dict(hamiltonian)
+
+        u_channel_lo = []
+        subsystem_list = [0]
+        dt = 1.
+
+        return PulseSystemModel(hamiltonian=ham_model,
+                                u_channel_lo=u_channel_lo,
+                                subsystem_list=subsystem_list,
+                                dt=dt)
 
 
 if __name__ == '__main__':

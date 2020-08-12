@@ -179,6 +179,8 @@ class PulseSimulator(AerBackend):
         if system_model is None:
             raise AerError("PulseSimulator requires a system model to run.")
 
+        run_config_new = {**run_config, 'qubit_freq_est': self._defaults.qubit_freq_est}
+
         return pulse_controller(qobj, system_model, run_config)
 
     def _set_option(self, key, value):
@@ -194,11 +196,6 @@ class PulseSimulator(AerBackend):
             setattr(self._configuration, key, value)
             if self._system_model is not None:
                 setattr(self._system_model, key, value)
-        elif key in ['qubit_freq_est', 'meas_freq_est']:
-            # options in both defaults and system model
-            setattr(self._defaults, key, value)
-            if self._system_model is not None:
-                setattr(self._system_model, '_' + key, value)
         # if system model is specified directly
         elif key == 'system_model':
             self._set_system_model(value)
@@ -226,10 +223,6 @@ class PulseSimulator(AerBackend):
                     may result in inconsistencies.''')
 
         self._system_model = system_model
-
-        # extract default information
-        for key in ['qubit_freq_est', 'meas_freq_est']:
-            setattr(self._defaults, key, getattr(self._system_model, '_' + key, None))
 
         # extract config information
         for key in ['dt', 'u_channel_lo']:

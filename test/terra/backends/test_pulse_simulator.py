@@ -509,8 +509,10 @@ class TestPulseSimulator(common.QiskitAerTestCase):
 
         # Test some irregular value
         r = 1.49815 / total_samples
-        schedule = self._1Q_constant_sched(total_samples)
+        system_model = self._system_model_3d_oscillator(freq, anharm, r)
+        pulse_sim.set_options(system_model=system_model)
 
+        schedule = self._1Q_constant_sched(total_samples)
         qobj = assemble([schedule],
                         backend=pulse_sim,
                         meas_level=2,

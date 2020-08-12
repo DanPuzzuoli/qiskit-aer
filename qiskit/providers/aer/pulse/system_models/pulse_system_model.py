@@ -99,16 +99,15 @@ class PulseSystemModel():
             raise AerError("{} is not a Qiskit backend".format(backend))
 
         # get relevant information from backend
-        defaults = backend.defaults()
         config = backend.configuration()
 
         if not config.open_pulse:
             raise AerError('{} is not an open pulse backend'.format(backend))
 
-        return cls.from_config_and_defaults(config, defaults, subsystem_list)
+        return cls.from_config(config, subsystem_list)
 
     @classmethod
-    def from_config_and_defaults(cls, configuration, defaults, subsystem_list=None):
+    def from_config(cls, configuration, subsystem_list=None):
         """Construct a model from configuration and defaults."""
 
         # draw from configuration

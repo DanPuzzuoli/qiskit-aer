@@ -138,9 +138,8 @@ class PulseSimulator(AerBackend):
         subsystem_list = backend_options.get('subsystem_list', None)
         if system_model is None:
             if hasattr(configuration, 'hamiltonian'):
-                self._system_model = PulseSystemModel.from_config_and_defaults(configuration,
-                                                                               defaults,
-                                                                               subsystem_list)
+                self._system_model = PulseSystemModel.from_config(configuration,
+                                                                  subsystem_list)
         else:
             self._set_system_model(system_model)
 
@@ -179,7 +178,8 @@ class PulseSimulator(AerBackend):
         if system_model is None:
             raise AerError("PulseSimulator requires a system model to run.")
 
-        run_config_new = {**run_config, 'qubit_freq_est': self._defaults.qubit_freq_est}
+        # add qubit_freq_est to the options
+        run_config_new = {**run_config, 'qubit_freq_est': self.defaults().qubit_freq_est}
 
         return pulse_controller(qobj, system_model, run_config)
 
@@ -188,27 +188,29 @@ class PulseSimulator(AerBackend):
         # first, handle cases that require updating two places
         if key == 'hamiltonian':
             # if option is hamiltonian, set in configuration and reconstruct pulse system model
-            setattr(self._configuration, key, value)
-            self._system_model = PulseSystemModel.from_config_and_defaults(self._configuration,
-                                                                           self._defaults)
+            setattr(self.configuration(), key, value)
+            subsystem_list = self._options.get('subsystem_list', None)
+            self._system_model = PulseSystemModel.from_config(self.configuration(),
+                                                              self.defaults(),
+                                                              subsystem_list)
         elif key in ['dt', 'u_channel_lo']:
             # options in both configuration and system_model
-            setattr(self._configuration, key, value)
+            setattr(self.configuration(), key, value)
             if self._system_model is not None:
                 setattr(self._system_model, key, value)
         # if system model is specified directly
         elif key == 'system_model':
             self._set_system_model(value)
         # remaining options for backend attributes
-        elif hasattr(self._configuration, key):
+        elif hasattr(self.configuration(), key):
             if key == 'meas_levels':
-                _set_config_meas_level(self._configuration, value)
+                _set_config_meas_level(self.configuration(), value)
             else:
-                setattr(self._configuration, key, value)
-        elif hasattr(self._defaults, key):
-            setattr(self._defaults, key, value)
-        elif hasattr(self._properties, key):
-            setattr(self._properties, key, value)
+                setattr(self.configuration(), key, value)
+        elif hasattr(self.defaults(), key):
+            setattr(self.defaults(), key, value)
+        elif hasattr(self.properties(), key):
+            setattr(self.properties(), key, value)
         # anything not handled by the above cases
         else:
             self._options[key] = value
@@ -218,7 +220,7 @@ class PulseSimulator(AerBackend):
         properties.
         """
 
-        if hasattr(self._configuration, 'hamiltonian'):
+        if hasattr(self.configuration(), 'hamiltonian'):
             warn('''Specifying both a configuration with a Hamiltonian and a system model
                     may result in inconsistencies.''')
 
@@ -226,7 +228,7 @@ class PulseSimulator(AerBackend):
 
         # extract config information
         for key in ['dt', 'u_channel_lo']:
-            setattr(self._configuration, key, getattr(self._system_model, key, []))
+            setattr(self.configuration(), key, getattr(self._system_model, key, []))
 
     def _validate(self, qobj, options):
         """Validation of qobj. Ensures that exactly one Acquire instruction is present in each

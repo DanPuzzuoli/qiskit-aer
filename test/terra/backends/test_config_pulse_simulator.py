@@ -50,12 +50,35 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
 
         athens_backend = FakeAthens()
         athens_sim = PulseSimulator.from_backend(athens_backend)
-        import pdb; pdb.set_trace()
+
         self.assertEqual(athens_backend.properties(), athens_sim.properties())
-        #self.assertEqual(athens_backend.configuration(), athens_sim.configuration())
-        self.assertEqual(athens_backend.defaults(), athens_sim.defaults())
+        # check that configuration is correctly imported
+        backend_dict = athens_backend.configuration().to_dict()
+        sim_dict = athens_sim.configuration().to_dict()
+        for key in sim_dict:
+            if key == 'backend_name':
+                self.assertEqual(sim_dict[key], 'pulse_simulator(fake_athens)')
+            elif key == 'description':
+                desc = 'A Pulse-based simulator configured from the backend: fake_athens'
+                self.assertEqual(sim_dict[key], desc)
+            elif key == 'simulator':
+                self.assertTrue(sim_dict[key], True)
+            else:
+                self.assertEqual(sim_dict[key], backend_dict[key])
 
-
+        backend_dict = athens_backend.defaults().to_dict()
+        sim_dict = athens_sim.defaults().to_dict()
+        for key in sim_dict:
+            if key == 'pulse_library':
+                # need to compare pulse libraries directly due to containing dictionaries
+                for idx, entry in enumerate(sim_dict[key]):
+                    for entry_key in entry:
+                        if entry_key == 'samples':
+                            self.assertTrue(all(entry[entry_key] == backend_dict[key][idx][entry_key]))
+                        else:
+                            self.assertTrue(entry[entry_key] == backend_dict[key][idx][entry_key])
+            else:
+                self.assertEqual(sim_dict[key], backend_dict[key])
 
     def test_from_backend_system_model(self):
         """Test that the system model is correctly imported from the backend."""
@@ -93,20 +116,6 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         athens_sim.set_options(dt=set_attr)
         sim_attr = athens_sim.configuration().dt
         model_attr = athens_sim._system_model.dt
-        self.assertTrue(sim_attr == set_attr and model_attr == set_attr)
-
-        # qubit_freq_est
-        set_attr = [5.]
-        athens_sim.set_options(qubit_freq_est=set_attr)
-        sim_attr = athens_sim.defaults().qubit_freq_est
-        model_attr = athens_sim._system_model._qubit_freq_est
-        self.assertTrue(sim_attr == set_attr and model_attr == set_attr)
-
-        # meas_freq_est
-        set_attr = [5.]
-        athens_sim.set_options(meas_freq_est=set_attr)
-        sim_attr = athens_sim.defaults().meas_freq_est
-        model_attr = athens_sim._system_model._meas_freq_est
         self.assertTrue(sim_attr == set_attr and model_attr == set_attr)
 
     def test_set_meas_levels(self):
@@ -156,8 +165,6 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         # check that system model properties have been imported
         self.assertEqual(armonk_sim.configuration().dt, system_model.dt)
         self.assertEqual(armonk_sim.configuration().u_channel_lo, system_model.u_channel_lo)
-        self.assertEqual(armonk_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
-        self.assertEqual(armonk_sim.defaults().meas_freq_est, system_model._meas_freq_est)
 
     def test_set_system_model_in_constructor(self):
         """Test setting system model when constructing."""
@@ -181,8 +188,6 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         # check that system model properties have been imported
         self.assertEqual(test_sim.configuration().dt, system_model.dt)
         self.assertEqual(test_sim.configuration().u_channel_lo, system_model.u_channel_lo)
-        self.assertEqual(test_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
-        self.assertEqual(test_sim.defaults().meas_freq_est, system_model._meas_freq_est)
 
     def test_set_system_model_after_construction(self):
         """Test setting the system model after construction."""
@@ -206,8 +211,6 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         self.assertEqual(test_sim._system_model, system_model)
         self.assertEqual(test_sim.configuration().dt, system_model.dt)
         self.assertEqual(test_sim.configuration().u_channel_lo, system_model.u_channel_lo)
-        self.assertEqual(test_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
-        self.assertEqual(test_sim.defaults().meas_freq_est, system_model._meas_freq_est)
 
         # next, construct a pulse simulator with a config containing a Hamiltonian and observe
         # warnings
@@ -226,8 +229,6 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
 
         self.assertEqual(test_sim.configuration().dt, system_model.dt)
         self.assertEqual(test_sim.configuration().u_channel_lo, system_model.u_channel_lo)
-        self.assertEqual(test_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
-        self.assertEqual(test_sim.defaults().meas_freq_est, system_model._meas_freq_est)
 
     def test_validation_num_acquires(self):
         """Test that validation fails if 0 or >1 acquire is given in a schedule."""

@@ -278,7 +278,7 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
 
         armonk_sim = PulseSimulator.from_backend(armonk_backend)
 
-        total_samples=250
+        total_samples = 250
         amp = np.pi / (drive_est * dt * total_samples)
 
         sched = self._1Q_schedule(total_samples, amp)
@@ -287,7 +287,7 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
                         meas_level=2,
                         meas_return='single',
                         shots=1)
-        # run and ensure that a pi pulse had been done
+        # run and verify that a pi pulse had been done
         result = armonk_sim.run(qobj).result()
         final_vec = result.get_statevector()
         probabilities = np.abs(final_vec)**2

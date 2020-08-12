@@ -44,7 +44,7 @@ def pulse_controller(qobj, system_model, backend_options):
         ValueError: if input is of incorrect format
         Exception: for invalid ODE options
     """
-
+    import pdb; pdb.set_trace()
     pulse_sim_desc = PulseSimDescription()
     pulse_de_model = PulseInternalDEModel()
 

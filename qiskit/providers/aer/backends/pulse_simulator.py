@@ -181,7 +181,7 @@ class PulseSimulator(AerBackend):
         # add qubit_freq_est to the options
         run_config_new = {**run_config, 'qubit_freq_est': self.defaults().qubit_freq_est}
 
-        return pulse_controller(qobj, system_model, run_config)
+        return pulse_controller(qobj, system_model, run_config_new)
 
     def _set_option(self, key, value):
 

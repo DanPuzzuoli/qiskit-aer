@@ -294,6 +294,34 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         self.assertTrue(probabilities[0] < 1e-5)
         self.assertTrue(probabilities[1] > 1 - 1e-5)
 
+    def _system_model_1Q(self, omega_0=5., r=0.02):
+        """Constructs a standard model for a 1 qubit system.
+
+        Args:
+            omega_0 (float): qubit frequency
+            r (float): drive strength
+
+        Returns:
+            PulseSystemModel: model for qubit system
+        """
+
+        hamiltonian = {}
+        hamiltonian['h_str'] = [
+            '2*np.pi*omega0*0.5*Z0', '2*np.pi*r*0.5*X0||D0'
+        ]
+        hamiltonian['vars'] = {'omega0': omega_0, 'r': r}
+        hamiltonian['qub'] = {'0': 2}
+        ham_model = HamiltonianModel.from_dict(hamiltonian)
+
+        u_channel_lo = []
+        subsystem_list = [0]
+        dt = 1.
+
+        return PulseSystemModel(hamiltonian=ham_model,
+                                u_channel_lo=u_channel_lo,
+                                subsystem_list=subsystem_list,
+                                dt=dt)
+
     def _1Q_schedule(self, total_samples=100, amp=1., num_acquires=1):
         """Creates a schedule for a single qubit.
 

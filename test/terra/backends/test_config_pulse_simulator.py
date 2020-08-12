@@ -235,7 +235,8 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
 
         test_sim = PulseSimulator(system_model=self._system_model_1Q())
 
-        qobj = assemble([self._1Q_invalid_sched()],
+        # check that too many acquires results in an error
+        qobj = assemble([self._1Q_invalid_sched(num_acquires=2)],
                         backend=test_sim,
                         meas_level=2,
                         qubit_lo_freq=[0.],
@@ -243,10 +244,22 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
                         shots=256)
 
         try:
-            test_sim.run(qobj)
+            test_sim.run(qobj).result()
         except AerError as error:
-            import pdb; pdb.set_trace()
-            print('wow')
+            self.assertTrue('does not support multiple Acquire' in error.message)
+
+        # check that no acquires results in an error
+        qobj = assemble([self._1Q_invalid_sched(num_acquires=0)],
+                        backend=test_sim,
+                        meas_level=2,
+                        qubit_lo_freq=[0.],
+                        meas_return='single',
+                        shots=256)
+
+        try:
+            test_sim.run(qobj).result()
+        except AerError as error:
+            self.assertTrue('requires at least one Acquire' in error.message)
 
 
     def _system_model_1Q(self, omega_0=5., r=0.02):

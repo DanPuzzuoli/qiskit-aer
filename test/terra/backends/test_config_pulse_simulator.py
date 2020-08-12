@@ -16,12 +16,17 @@ Configurable PulseSimulator Tests
 import sys
 import unittest
 import warnings
+import numpy as np
 from test.terra import common
 
 from qiskit.test.mock.backends.armonk.fake_armonk import FakeArmonk
 from qiskit.test.mock.backends.athens.fake_athens import FakeAthens
 
 from qiskit.providers.aer.backends import PulseSimulator
+from qiskit.pulse import (Schedule, Play, ShiftPhase, SetPhase, Delay, Acquire,
+                          Waveform, DriveChannel, ControlChannel,
+                          AcquireChannel, MemorySlot)
+from qiskit.providers.aer.aererror import AerError
 
 from qiskit.compiler import assemble
 from qiskit.providers.aer.pulse.system_models.pulse_system_model import PulseSystemModel
@@ -39,6 +44,18 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         """
         if sys.version_info.major == 3 and sys.version_info.minor == 5:
             self.skipTest("We don't support Python 3.5 for Pulse simulator")
+
+    def test_from_backend(self):
+        """Test that configuration, defaults, and properties are correclty imported."""
+
+        athens_backend = FakeAthens()
+        athens_sim = PulseSimulator.from_backend(athens_backend)
+
+        self.assertEqual(athens_backend.properties(), athens_sim.properties())
+        self.assertEqual(athens_backend.configuration(), athens_sim.configuration())
+        self.assertEqual(athens_backend.defaults(), athens_sim.defaults())
+
+
 
     def test_from_backend_system_model(self):
         """Test that the system model is correctly imported from the backend."""
@@ -224,6 +241,25 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         self.assertEqual(test_sim.defaults().qubit_freq_est, system_model._qubit_freq_est)
         self.assertEqual(test_sim.defaults().meas_freq_est, system_model._meas_freq_est)
 
+    def test_validation_num_acquires(self):
+        """Test that validation fails if 0 or >1 acquire is given in a schedule."""
+
+        test_sim = PulseSimulator(system_model=self._system_model_1Q())
+
+        qobj = assemble([self._1Q_invalid_sched()],
+                        backend=test_sim,
+                        meas_level=2,
+                        qubit_lo_freq=[0.],
+                        meas_return='single',
+                        shots=256)
+
+        try:
+            test_sim.run(qobj)
+        except AerError as error:
+            import pdb; pdb.set_trace()
+            print('wow')
+
+
     def _system_model_1Q(self, omega_0=5., r=0.02):
         """Constructs a standard model for a 1 qubit system.
 
@@ -251,6 +287,25 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
                                 u_channel_lo=u_channel_lo,
                                 subsystem_list=subsystem_list,
                                 dt=dt)
+
+    def _1Q_invalid_sched(self, num_acquires=2):
+        """Creates a schedule with a variable number of acquires. num_acquires == 1 is a valid
+        schedule, and both num_acquires == 0 and num_acquires > 1 should raise errors.
+
+        Args:
+            num_acquires (int): number of acquire instructions to include in the schedule
+
+        Returns:
+            schedule (pulse schedule):
+        """
+
+        total_samples = 100
+        schedule = Schedule()
+        schedule |= Play(Waveform(np.ones(total_samples)), DriveChannel(0))
+        for _ in range(num_acquires):
+            schedule |= Acquire(total_samples, AcquireChannel(0),
+                                MemorySlot(0)) << schedule.duration
+        return schedule
 
 
 if __name__ == '__main__':

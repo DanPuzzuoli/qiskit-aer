@@ -23,6 +23,7 @@ from qiskit.providers.aer.backends.aerbackend import AerBackend
 from qiskit.providers.aer.pulse.controllers.pulse_controller import pulse_controller
 from qiskit.providers.aer.pulse.system_models.pulse_system_model import PulseSystemModel
 from qiskit.providers.aer.version import __version__
+from qiskit.providers.aer.aererror import AerError
 
 logger = logging.getLogger(__name__)
 
@@ -148,12 +149,14 @@ class PulseSimulator(AerBackend):
         """Initialize simulator from backend."""
         configuration = backend.configuration()
         defaults = backend.defaults()
-        
+        properties = backend.properties()
+
         backend_name = 'pulse_simulator({})'.format(configuration.backend_name)
         description = 'A Pulse-based simulator configured from the backend: '
         description += configuration.backend_name
 
         sim = cls(configuration=configuration,
+                  properties=properties,
                   defaults=defaults,
                   backend_name=backend_name,
                   description=description,
@@ -172,6 +175,10 @@ class PulseSimulator(AerBackend):
         """
         # preserve overriding of system model at run time
         system_model = run_config.get('system_model', self._system_model)
+
+        if system_model is None:
+            raise AerError("PulseSimulator requires a system model to run.")
+
         return pulse_controller(qobj, system_model, run_config)
 
     def _set_option(self, key, value):
@@ -227,6 +234,25 @@ class PulseSimulator(AerBackend):
         # extract config information
         for key in ['dt', 'u_channel_lo']:
             setattr(self._configuration, key, getattr(self._system_model, key, []))
+
+    def _validate(self, qobj, options):
+        """Validation of qobj. Ensures that exactly one Acquire instruction is present in each
+        schedule.
+        """
+        for exp in qobj.experiments:
+            num_acquires = 0
+            for instruction in exp.instructions:
+                if instruction.name == 'acquire':
+                    num_acquires += 1
+
+                if num_acquires > 1:
+                    raise AerError("PulseSimulator does not support multiple Acquire "
+                                   "instructions in a single schedule.")
+
+            if num_acquires == 0:
+                raise AerError("PulseSimulator requires at least one Acquire "
+                               "instruction per schedule.")
+
 
 
 

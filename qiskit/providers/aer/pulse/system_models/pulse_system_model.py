@@ -56,8 +56,8 @@ class PulseSystemModel():
     """
     def __init__(self,
                  hamiltonian=None,
-                 qubit_freq_est=None,
-                 meas_freq_est=None,
+                 qubit_freq_est=[np.inf],
+                 meas_freq_est=[np.inf],
                  u_channel_lo=None,
                  control_channel_labels=None,
                  subsystem_list=None,

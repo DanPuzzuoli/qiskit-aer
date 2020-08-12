@@ -233,10 +233,10 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
     def test_validation_num_acquires(self):
         """Test that validation fails if 0 or >1 acquire is given in a schedule."""
 
-        test_sim = PulseSimulator(system_model=self._system_model_1Q())
+        test_sim = PulseSimulator.from_backend(FakeArmonk())
 
         # check that too many acquires results in an error
-        qobj = assemble([self._1Q_invalid_sched(num_acquires=2)],
+        qobj = assemble([self._1Q_schedule(num_acquires=2)],
                         backend=test_sim,
                         meas_level=2,
                         qubit_lo_freq=[0.],
@@ -249,7 +249,7 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
             self.assertTrue('does not support multiple Acquire' in error.message)
 
         # check that no acquires results in an error
-        qobj = assemble([self._1Q_invalid_sched(num_acquires=0)],
+        qobj = assemble([self._1Q_schedule(num_acquires=0)],
                         backend=test_sim,
                         meas_level=2,
                         qubit_lo_freq=[0.],
@@ -261,49 +261,53 @@ class TestConfigPulseSimulator(common.QiskitAerTestCase):
         except AerError as error:
             self.assertTrue('requires at least one Acquire' in error.message)
 
+    def test_run_simulation_from_backend(self):
+        """Construct from a backend and run a simulation."""
+        armonk_backend = FakeArmonk()
 
-    def _system_model_1Q(self, omega_0=5., r=0.02):
-        """Constructs a standard model for a 1 qubit system.
+        # manually override parameters to insulate from future changes to FakeArmonk
+        freq_est = 4.97e9
+        drive_est = 6.35e7
+        armonk_backend.defaults().qubit_freq_est = [freq_est]
+        armonk_backend.configuration().hamiltonian['h_str']= ['wq0*0.5*(I0-Z0)', 'omegad0*X0||D0']
+        armonk_backend.configuration().hamiltonian['vars'] = {'wq0': 2 * np.pi * freq_est,
+                                                              'omegad0': drive_est}
+        armonk_backend.configuration().hamiltonian['qub'] = {'0': 2}
+        dt = 2.2222222222222221e-10
+        armonk_backend.configuration().dt = dt
+
+        armonk_sim = PulseSimulator.from_backend(armonk_backend)
+
+        total_samples=250
+        amp = np.pi / (drive_est * dt * total_samples)
+
+        sched = self._1Q_schedule(total_samples, amp)
+        qobj = assemble([sched],
+                        backend=armonk_sim,
+                        meas_level=2,
+                        meas_return='single',
+                        shots=1)
+        # run and ensure that a pi pulse had been done
+        result = armonk_sim.run(qobj).result()
+        final_vec = result.get_statevector()
+        probabilities = np.abs(final_vec)**2
+        self.assertTrue(probabilities[0] < 1e-5)
+        self.assertTrue(probabilities[1] > 1 - 1e-5)
+
+    def _1Q_schedule(self, total_samples=100, amp=1., num_acquires=1):
+        """Creates a schedule for a single qubit.
 
         Args:
-            omega_0 (float): qubit frequency
-            r (float): drive strength
-
-        Returns:
-            PulseSystemModel: model for qubit system
-        """
-
-        hamiltonian = {}
-        hamiltonian['h_str'] = [
-            '2*np.pi*omega0*0.5*Z0', '2*np.pi*r*0.5*X0||D0'
-        ]
-        hamiltonian['vars'] = {'omega0': omega_0, 'r': r}
-        hamiltonian['qub'] = {'0': 2}
-        ham_model = HamiltonianModel.from_dict(hamiltonian)
-
-        u_channel_lo = []
-        subsystem_list = [0]
-        dt = 1.
-
-        return PulseSystemModel(hamiltonian=ham_model,
-                                u_channel_lo=u_channel_lo,
-                                subsystem_list=subsystem_list,
-                                dt=dt)
-
-    def _1Q_invalid_sched(self, num_acquires=2):
-        """Creates a schedule with a variable number of acquires. num_acquires == 1 is a valid
-        schedule, and both num_acquires == 0 and num_acquires > 1 should raise errors.
-
-        Args:
+            total_samples (int): number of samples in the drive pulse
+            amp (complex): amplitude of drive pulse
             num_acquires (int): number of acquire instructions to include in the schedule
 
         Returns:
             schedule (pulse schedule):
         """
 
-        total_samples = 100
         schedule = Schedule()
-        schedule |= Play(Waveform(np.ones(total_samples)), DriveChannel(0))
+        schedule |= Play(Waveform(amp * np.ones(total_samples)), DriveChannel(0))
         for _ in range(num_acquires):
             schedule |= Acquire(total_samples, AcquireChannel(0),
                                 MemorySlot(0)) << schedule.duration

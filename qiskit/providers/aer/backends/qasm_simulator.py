@@ -283,24 +283,16 @@ class QasmSimulator(AerBackend):
                   **options)
         return sim
 
-    def _execute(self, qobj, run_config):
+    def _execute(self, qobj):
         """Execute a qobj on the backend.
 
         Args:
-            qobj (QasmQobj or PulseQobj): simulator input.
-            run_config (dict): run config for overriding Qobj config.
+            qobj (QasmQobj): simulator input.
 
         Returns:
             dict: return a dictionary of results.
         """
-        controller_input = qobj.to_dict()
-        for key, val in run_config.items():
-            if hasattr(val, 'to_dict'):
-                controller_input['config'][key] = val.to_dict()
-            else:
-                controller_input['config'][key] = val
-        # Execute on controller
-        return cpp_execute(qasm_controller_execute, controller_input)
+        return cpp_execute(qasm_controller_execute, qobj)
 
     def _set_option(self, key, value):
         """Set the simulation method and update configuration.
@@ -336,7 +328,7 @@ class QasmSimulator(AerBackend):
         # Set all other options from AerBackend
         super()._set_option(key, value)
 
-    def _validate(self, qobj, options):
+    def _validate(self, qobj):
         """Semantic validations of the qobj which cannot be done via schemas.
 
         Warn if no measurements in circuit with classical registers.

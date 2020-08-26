@@ -141,19 +141,22 @@ class AerBackend(BaseBackend, ABC):
         if backend_options is not None:
             warnings.warn(
                 'Using `backend_options` kwarg has been deprecated as of'
-                ' qiskit-aer 0.6.0 and will be removed no earlier than 3'
+                ' qiskit-aer 0.7.0 and will be removed no earlier than 3'
                 ' months from that release date. Runtime backend options'
                 ' should now be added directly using kwargs for each option.',
                 DeprecationWarning,
                 stacklevel=3)
 
+        # Add backend options to the Job qobj
+        qobj = self._run_qobj(
+            qobj, backend_options=backend_options, **run_options)
+
+        # Optional validation
+        if validate:
+            self._validate(qobj)
+
         # Submit job
-        aer_job = AerJob(self,
-                         self._run,
-                         qobj,
-                         validate=validate,
-                         backend_options=backend_options,
-                         **run_options)
+        aer_job = AerJob(self, self._run, qobj)
         aer_job.submit()
         return aer_job
 
@@ -223,27 +226,13 @@ class AerBackend(BaseBackend, ABC):
             pending_jobs=0,
             status_msg='')
 
-    def _run(
-            self,
-            qobj,
-            job_id='',
-            validate=True,
-            backend_options=None,  # DEPRECATED
-            **run_options):
+    def _run(self, qobj, job_id=''):
         """Run a job"""
         # Start timer
         start = time.time()
 
-        # Runtime config
-        run_config = self._run_config(backend_options=backend_options,
-                                      **run_options)
-
-        # Optional validation
-        if validate:
-            self._validate(qobj, run_config)
-
         # Run simulation
-        output = self._execute(qobj, run_config)
+        output = self._execute(qobj)
 
         # Validate output
         if not isinstance(output, dict):
@@ -264,20 +253,19 @@ class AerBackend(BaseBackend, ABC):
         return Result.from_dict(output)
 
     @abstractmethod
-    def _execute(self, qobj, run_config):
+    def _execute(self, qobj):
         """Execute a qobj on the backend.
 
         Args:
             qobj (QasmQobj or PulseQobj): simulator input.
-            run_config (dict): run config for overriding Qobj config.
 
         Returns:
             dict: return a dictionary of results.
         """
         pass
 
-    def _validate(self, qobj, options):
-        """Validate the qobj and backend_options for the backend"""
+    def _validate(self, qobj):
+        """Validate the qobj for the backend"""
         pass
 
     def _set_option(self, key, value):
@@ -342,6 +330,28 @@ class AerBackend(BaseBackend, ABC):
         if self._custom_defaults is None:
             self._custom_defaults = copy.copy(self._defaults)
         setattr(self._custom_defaults, key, value)
+
+    def _run_qobj(self, qobj,
+                  backend_options=None,  # DEPRECATED
+                  **run_options):
+        """Return execution sim config dict from backend options."""
+        # Add options to qobj config overriding any existing fields
+        config = qobj.config
+
+        # Add options
+        for key, val in self.options.items():
+            setattr(config, key, val)
+
+        # DEPRECATED backend options
+        if backend_options is not None:
+            for key, val in backend_options.items():
+                setattr(config, key, val)
+
+        # Override with run-time options
+        for key, val in run_options.items():
+            setattr(config, key, val)
+
+        return qobj
 
     def _run_config(
             self,

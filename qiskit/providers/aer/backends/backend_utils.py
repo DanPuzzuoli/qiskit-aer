@@ -34,30 +34,32 @@ LIBRARY_DIR = os.path.dirname(__file__)
 
 def cpp_execute(controller, qobj):
     """Execute qobj_dict on C++ controller wrapper"""
+    # Convert qobj to dict
+    qobj_dict = qobj.to_dict()
+
+    if 'noise_model' in qobj_dict['config']:
+        # Convert noise model to dict
+        noise_model = qobj_dict['config']['noise_model'].to_dict()
+        qobj_dict['config']['noise_model'] = noise_model
+
     # Location where we put external libraries that will be
     # loaded at runtime by the simulator extension
-    qobj['config']['library_dir'] = LIBRARY_DIR
-    return controller(qobj)
+    qobj_dict['config']['library_dir'] = LIBRARY_DIR
+
+    return controller(qobj_dict)
 
 
 def available_methods(controller, methods):
     """Check available simulation methods by running a dummy circuit."""
     # Test methods are available using the controller
     dummy_circ = QuantumCircuit(1)
-    # NOTE: This hasattr check is to remove derecation warning
-    # for changing `iden` to `i`, while maintaining backwards
-    # compatibility. It should be removed once `i` has made it
-    # into Terra stable.
-    if hasattr(dummy_circ, 'i'):
-        dummy_circ.i(0)
-    else:
-        dummy_circ.iden(0)
+    dummy_circ.i(0)
 
     valid_methods = []
     for method in methods:
         qobj = assemble(dummy_circ,
                         optimization_level=0,
-                        method=method).to_dict()
+                        method=method)
         result = cpp_execute(controller, qobj)
         if result.get('success', False):
             valid_methods.append(method)

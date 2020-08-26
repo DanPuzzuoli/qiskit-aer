@@ -123,26 +123,18 @@ class StatevectorSimulator(AerBackend):
             provider=provider,
             backend_options=backend_options)
 
-    def _execute(self, qobj, run_config):
+    def _execute(self, qobj):
         """Execute a qobj on the backend.
 
         Args:
             qobj (QasmQobj): simulator input.
-            run_config (dict): run config for overriding Qobj config.
 
         Returns:
             dict: return a dictionary of results.
         """
-        controller_input = qobj.to_dict()
-        for key, val in run_config.items():
-            if hasattr(val, 'to_dict'):
-                controller_input['config'][key] = val.to_dict()
-            else:
-                controller_input['config'][key] = val
-        # Execute on controller
-        return cpp_execute(statevector_controller_execute, controller_input)
+        return cpp_execute(statevector_controller_execute, qobj)
 
-    def _validate(self, qobj, options):
+    def _validate(self, qobj):
         """Semantic validations of the qobj which cannot be done via schemas.
         Some of these may later move to backend schemas.
 
@@ -150,7 +142,7 @@ class StatevectorSimulator(AerBackend):
         2. Check number of qubits will fit in local memory.
         """
         name = self.name()
-        if options and 'noise_model' in options:
+        if getattr(qobj.config, 'noise_model', None) is not None:
             raise AerError("{} does not support noise.".format(name))
 
         n_qubits = qobj.config.n_qubits

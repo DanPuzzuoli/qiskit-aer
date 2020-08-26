@@ -159,7 +159,7 @@ class PulseSimulator(AerBackend):
                   **options)
         return sim
 
-    def _execute(self, qobj, run_config):
+    def _execute(self, qobj):
         """Execute a qobj on the backend.
 
         Args:
@@ -169,16 +169,13 @@ class PulseSimulator(AerBackend):
         Returns:
             dict: return a dictionary of results.
         """
+        config = qobj.config
+        config.qubit_freq_est = self.defaults().qubit_freq_est
+
         # preserve overriding of system model at run time
-        system_model = run_config.get('system_model', self._system_model)
+        system_model = getattr(qobj.config, 'system_model', None)
 
-        if system_model is None:
-            raise AerError("PulseSimulator requires a system model to run.")
-
-        # add qubit_freq_est to the options
-        run_config_new = {**run_config, 'qubit_freq_est': self.defaults().qubit_freq_est}
-
-        return pulse_controller(qobj, system_model, run_config_new)
+        return pulse_controller(qobj, system_model, config)
 
     def _set_option(self, key, value):
         """Set pulse simulation options and update backend."""
@@ -223,10 +220,15 @@ class PulseSimulator(AerBackend):
             'u_channel_lo', getattr(system_model, 'u_channel_lo', []))
         super()._set_option('system_model', system_model)
 
-    def _validate(self, qobj, options):
-        """Validation of qobj. Ensures that exactly one Acquire instruction is present in each
-        schedule.
+    def _validate(self, qobj):
+        """Validation of qobj.
+
+        Ensures that exactly one Acquire instruction is present in each
+        schedule. Checks SystemModel is in qobj config
         """
+        if getattr(qobj.config, 'system_model', None) is None:
+            raise AerError("PulseSimulator requires a system model to run.")
+
         for exp in qobj.experiments:
             num_acquires = 0
             for instruction in exp.instructions:

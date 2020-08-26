@@ -89,11 +89,34 @@ DEFAULT_CONFIGURATION = {
 class UnitarySimulator(AerBackend):
     """Ideal quantum circuit unitary simulator.
 
-    **Backend options**
+    **Configurable Options**
 
-    The following backend options may be used with in the
-    ``backend_options`` kwarg for :meth:`UnitarySimulator.run` or
-    ``qiskit.execute``.
+    The `UnitarySimulator` supports CPU and GPU simulation methods and
+    additional configurable options. These may be set using the appropriate kwargs
+    during initialization. They can also be set of updated using the
+    :meth:`set_options` method.
+
+    Run-time options may also be specified as kwargs using the :meth:`run` method.
+    These will not be stored in the backend and will only apply to that execution.
+    They will also override any previously set options.
+
+    For example, to configure a a single-precision simulator
+
+    .. code-block:: python
+
+        backend = UnitarySimulator(precision='single')
+
+    **Backend Options**
+
+    The following configurable backend options are supported
+
+    * ``method`` (str): Set the simulation method supported methods are
+      ``"unitary"`` for CPU simulation, and ``"untiary_gpu"``
+      for GPU simulation (Default: ``"unitary"``).
+
+    * ``precision`` (str): Set the floating point precision for
+      certain simulation methods to either ``"single"`` or ``"double"``
+      precision (default: ``"double"``).
 
     * ``"initial_unitary"`` (matrix_like): Sets a custom initial unitary
       matrix for the simulation instead of identity (Default: None).

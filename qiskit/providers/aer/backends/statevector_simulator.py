@@ -61,35 +61,58 @@ DEFAULT_CONFIGURATION = {
 class StatevectorSimulator(AerBackend):
     """Ideal quantum circuit statevector simulator
 
-    **Backend options**
+    **Configurable Options**
 
-    The following backend options may be used with in the
-    ``backend_options`` kwarg for :meth:`StatevectorSimulator.run` or
-    ``qiskit.execute``.
+    The `StatevectorSimulator` supports CPU and GPU simulation methods and
+    additional configurable options. These may be set using the appropriate kwargs
+    during initialization. They can also be set of updated using the
+    :meth:`set_options` method.
 
-    * ``"zero_threshold"`` (double): Sets the threshold for truncating
+    Run-time options may also be specified as kwargs using the :meth:`run` method.
+    These will not be stored in the backend and will only apply to that execution.
+    They will also override any previously set options.
+
+    For example, to configure a a single-precision  simulator
+
+    .. code-block:: python
+
+        backend = StatevectorSimulator(precision='single')
+
+    **Backend Options**
+
+    The following configurable backend options are supported
+
+    * ``method`` (str): Set the simulation method supported methods are
+      ``"statevector"`` for CPU simulation, and ``"statevector_gpu"``
+      for GPU simulation (Default: ``"statevector"``).
+
+    * ``precision`` (str): Set the floating point precision for
+      certain simulation methods to either ``"single"`` or ``"double"``
+      precision (default: ``"double"``).
+
+    * ``zero_threshold`` (double): Sets the threshold for truncating
       small values to zero in the result data (Default: 1e-10).
 
-    * ``"validation_threshold"`` (double): Sets the threshold for checking
+    * ``validation_threshold`` (double): Sets the threshold for checking
       if the initial statevector is valid (Default: 1e-8).
 
-    * ``"max_parallel_threads"`` (int): Sets the maximum number of CPU
+    * ``max_parallel_threads`` (int): Sets the maximum number of CPU
       cores used by OpenMP for parallelization. If set to 0 the
       maximum will be set to the number of CPU cores (Default: 0).
 
-    * ``"max_parallel_experiments"`` (int): Sets the maximum number of
+    * ``max_parallel_experiments`` (int): Sets the maximum number of
       qobj experiments that may be executed in parallel up to the
       max_parallel_threads value. If set to 1 parallel circuit
       execution will be disabled. If set to 0 the maximum will be
       automatically set to max_parallel_threads (Default: 1).
 
-    * ``"max_memory_mb"`` (int): Sets the maximum size of memory
+    * ``max_memory_mb`` (int): Sets the maximum size of memory
       to store a state vector. If a state vector needs more, an error
       is thrown. In general, a state vector of n-qubits uses 2^n complex
       values (16 Bytes). If set to 0, the maximum will be automatically
       set to half the system memory size (Default: 0).
 
-    * ``"statevector_parallel_threshold"`` (int): Sets the threshold that
+    * ``statevector_parallel_threshold`` (int): Sets the threshold that
       "n_qubits" must be greater than to enable OpenMP
       parallelization for matrix multiplication during execution of
       an experiment. If parallel circuit or shot execution is enabled

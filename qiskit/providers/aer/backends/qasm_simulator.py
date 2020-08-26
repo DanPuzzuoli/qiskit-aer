@@ -13,6 +13,7 @@
 Qiskit Aer qasm simulator backend.
 """
 
+import copy
 import logging
 from qiskit.providers.models import QasmBackendConfiguration
 from qiskit.providers.aer.backends.aerbackend import AerBackend
@@ -263,8 +264,8 @@ class QasmSimulator(AerBackend):
     def from_backend(cls, backend, **options):
         """Initialize simulator from backend."""
         # Get configuration and properties from backend
-        configuration = backend.configuration()
-        properties = backend.properties()
+        configuration = copy.copy(backend.configuration())
+        properties = copy.copy(backend.properties())
 
         # Customize configuration name
         name = configuration.backend_name
@@ -314,14 +315,14 @@ class QasmSimulator(AerBackend):
         # If key is noise_model we also change the simulator config
         # to use the noise_model basis gates by default.
         if key == 'noise_model' and value is not None:
-            super()._set_option('basis_gates', value.basis_gates)
+            self._set_configuration_option('basis_gates', value.basis_gates)
 
         # If key is method we update our configurations
         if key == 'method':
             method_config = self._method_configuration(value)
-            super()._set_option('description', method_config.description)
-            super()._set_option('backend_name', method_config.backend_name)
-            super()._set_option('n_qubits', method_config.n_qubits)
+            self._set_configuration_option('description', method_config.description)
+            self._set_configuration_option('backend_name', method_config.backend_name)
+            self._set_configuration_option('n_qubits', method_config.n_qubits)
 
             # Take intersection of method basis gates and noise model basis gates
             # if there is a noise model which has already set the basis gates
@@ -330,7 +331,7 @@ class QasmSimulator(AerBackend):
                 noise_basis_gates = self.options['noise_model'].basis_gates
                 basis_gates = list(
                     set(basis_gates).intersection(noise_basis_gates))
-            super()._set_option('basis_gates', basis_gates)
+            self._set_configuration_option('basis_gates', basis_gates)
 
         # Set all other options from AerBackend
         super()._set_option(key, value)

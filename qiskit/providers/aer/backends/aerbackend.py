@@ -24,7 +24,6 @@ from numpy import ndarray
 
 from qiskit.providers import BaseBackend
 from qiskit.providers.models import BackendStatus
-from qiskit.qobj import validate_qobj_against_schema
 from qiskit.result import Result
 
 from qiskit.providers.aer.aerjob import AerJob
@@ -83,6 +82,7 @@ class AerBackend(BaseBackend, ABC):
             AerError: if there is no name in the configuration
         """
         # Init configuration and provider in BaseBackend
+        configuration.simulator = True
         super().__init__(configuration, provider=provider)
 
         # Initialize backend properties and pulse defaults.
@@ -240,7 +240,6 @@ class AerBackend(BaseBackend, ABC):
 
         # Optional validation
         if validate:
-            validate_qobj_against_schema(qobj)
             self._validate(qobj, run_config)
 
         # Run simulation
@@ -299,21 +298,15 @@ class AerBackend(BaseBackend, ABC):
         # will be generated that can store the modified values without
         # changing the original object
         if hasattr(self._configuration, key):
-            if self._custom_configuration is None:
-                self._custom_configuration = copy.copy(self._configuration)
-            setattr(self._custom_configuration, key, value)
+            self._set_configuration_option(key, value)
             return
 
         if hasattr(self._properties, key):
-            if self._custom_properties is None:
-                self._custom_properties = copy.copy(self._properties)
-            setattr(self._custom_properties, key, value)
+            self._set_properties_option(key, value)
             return
 
         if hasattr(self._defaults, key):
-            if self._custom_defaults is None:
-                self._custom_defaults = copy.copy(self._defaults)
-            setattr(self._custom_defaults, key, value)
+            self._set_defaults_option(key, value)
             return
 
         # If key is method, we validate it is one of the available methods
@@ -331,6 +324,24 @@ class AerBackend(BaseBackend, ABC):
         elif key in self._options:
             # If setting an existing option to None remove it from options dict
             self._options.pop(key)
+
+    def _set_configuration_option(self, key, value):
+        """Special handling for setting backend configuration options."""
+        if self._custom_configuration is None:
+            self._custom_configuration = copy.copy(self._configuration)
+        setattr(self._custom_configuration, key, value)
+
+    def _set_properties_option(self, key, value):
+        """Special handling for setting backend properties options."""
+        if self._custom_properties is None:
+            self._custom_properties = copy.copy(self._properties)
+        setattr(self._custom_properties, key, value)
+
+    def _set_defaults_option(self, key, value):
+        """Special handling for setting backend defaults options."""
+        if self._custom_defaults is None:
+            self._custom_defaults = copy.copy(self._defaults)
+        setattr(self._custom_defaults, key, value)
 
     def _run_config(
             self,

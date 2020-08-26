@@ -14,10 +14,11 @@
 Qiskit Aer pulse simulator backend.
 """
 
+import copy
 import logging
-from copy import deepcopy
 from warnings import warn
 from numpy import inf
+
 from qiskit.providers.models import BackendConfiguration, PulseDefaults
 from qiskit.providers.aer.backends.aerbackend import AerBackend
 from qiskit.providers.aer.pulse.controllers.pulse_controller import pulse_controller
@@ -105,16 +106,14 @@ class PulseSimulator(AerBackend):
                  properties=None,
                  defaults=None,
                  provider=None,
-                 system_model=None,
                  **backend_options):
 
         if configuration is None:
             configuration = BackendConfiguration.from_dict(
                 DEFAULT_CONFIGURATION)
         else:
-            configuration = deepcopy(configuration)
-            configuration.simulator = True
-            _set_config_meas_level(configuration, configuration.meas_levels)
+            configuration = copy.copy(configuration)
+            configuration.meas_levels = self._meas_levels(configuration.meas_levels)
 
         if defaults is None:
             defaults = PulseDefaults(qubit_freq_est=[inf],
@@ -122,11 +121,6 @@ class PulseSimulator(AerBackend):
                                      buffer=0,
                                      cmd_def=[],
                                      pulse_library=[])
-        else:
-            defaults = deepcopy(defaults)
-
-        if properties is not None:
-            properties = deepcopy(properties)
 
         super().__init__(configuration,
                          properties=properties,
@@ -134,21 +128,24 @@ class PulseSimulator(AerBackend):
                          provider=provider,
                          backend_options=backend_options)
 
-        # set up system model
+        # Set up default system model
         subsystem_list = backend_options.get('subsystem_list', None)
-        if system_model is None:
+        if backend_options.get('system_model') is None:
             if hasattr(configuration, 'hamiltonian'):
-                self._system_model = PulseSystemModel.from_config(configuration,
-                                                                  subsystem_list)
-        else:
-            self._set_system_model(system_model)
+                system_model = PulseSystemModel.from_config(
+                    configuration, subsystem_list)
+                self._set_system_model(system_model)
+
+    @property
+    def _system_model(self):
+        return self._options.get('system_model')
 
     @classmethod
     def from_backend(cls, backend, **options):
         """Initialize simulator from backend."""
-        configuration = backend.configuration()
-        defaults = backend.defaults()
-        properties = backend.properties()
+        configuration = copy.copy(backend.configuration())
+        defaults = copy.copy(backend.defaults())
+        properties = copy.copy(backend.properties())
 
         backend_name = 'pulse_simulator({})'.format(configuration.backend_name)
         description = 'A Pulse-based simulator configured from the backend: '
@@ -184,51 +181,47 @@ class PulseSimulator(AerBackend):
         return pulse_controller(qobj, system_model, run_config_new)
 
     def _set_option(self, key, value):
+        """Set pulse simulation options and update backend."""
+        if key == 'meas_levels':
+            self._set_configuration_option(key, self._meas_levels(value))
+            return
 
-        # first, handle cases that require updating two places
-        if key == 'hamiltonian':
-            # if option is hamiltonian, set in configuration and reconstruct pulse system model
-            setattr(self.configuration(), key, value)
-            subsystem_list = self._options.get('subsystem_list', None)
-            self._system_model = PulseSystemModel.from_config(self.configuration(),
-                                                              self.defaults(),
-                                                              subsystem_list)
-        elif key in ['dt', 'u_channel_lo']:
-            # options in both configuration and system_model
-            setattr(self.configuration(), key, value)
+        # Handle cases that require updating two places
+        if key in ['dt', 'u_channel_lo']:
+            self._set_configuration_option(key, value)
             if self._system_model is not None:
                 setattr(self._system_model, key, value)
+            return
+
+        if key == 'hamiltonian':
+            # if option is hamiltonian, set in configuration and reconstruct pulse system model
+            subsystem_list = self._options.get('subsystem_list', None)
+            system_model = PulseSystemModel.from_config(self.configuration(),
+                                                        self.defaults(),
+                                                        subsystem_list)
+            super()._set_option('system_model', system_model)
+            self._set_configuration_option(key, value)
+            return
+
         # if system model is specified directly
-        elif key == 'system_model':
+        if key == 'system_model':
+            if hasattr(self.configuration(), 'hamiltonian'):
+                warn('Specifying both a configuration with a Hamiltonian and a '
+                     'system model may result in inconsistencies.')
+            # Set config dt and u_channel_lo to system model values
             self._set_system_model(value)
-        # remaining options for backend attributes
-        elif hasattr(self.configuration(), key):
-            if key == 'meas_levels':
-                _set_config_meas_level(self.configuration(), value)
-            else:
-                setattr(self.configuration(), key, value)
-        elif hasattr(self.defaults(), key):
-            setattr(self.defaults(), key, value)
-        elif hasattr(self.properties(), key):
-            setattr(self.properties(), key, value)
-        # anything not handled by the above cases
-        else:
-            self._options[key] = value
+            return
+
+        # Set all other options from AerBackend
+        super()._set_option(key, value)
 
     def _set_system_model(self, system_model):
-        """Set a system model and extract transfer relevant information to configuration and
-        properties.
-        """
-
-        if hasattr(self.configuration(), 'hamiltonian'):
-            warn('''Specifying both a configuration with a Hamiltonian and a system model
-                    may result in inconsistencies.''')
-
-        self._system_model = system_model
-
-        # extract config information
-        for key in ['dt', 'u_channel_lo']:
-            setattr(self.configuration(), key, getattr(self._system_model, key, []))
+        """Set system model option"""
+        self._set_configuration_option(
+            'dt', getattr(system_model, 'dt', []))
+        self._set_configuration_option(
+            'u_channel_lo', getattr(system_model, 'u_channel_lo', []))
+        super()._set_option('system_model', system_model)
 
     def _validate(self, qobj, options):
         """Validation of qobj. Ensures that exactly one Acquire instruction is present in each
@@ -248,14 +241,12 @@ class PulseSimulator(AerBackend):
                 raise AerError("PulseSimulator requires at least one Acquire "
                                "instruction per schedule.")
 
-
-
-
-def _set_config_meas_level(configuration, meas_levels):
-    """Function for setting meas_levels in a pulse simulator configuration."""
-    meas_levels = deepcopy(meas_levels)
-    if 0 in meas_levels:
-        warn('Measurement level 0 not supported in pulse simulator.')
-        meas_levels.remove(0)
-
-    configuration.meas_levels = meas_levels
+    @staticmethod
+    def _meas_levels(meas_levels):
+        """Function for setting meas_levels in a pulse simulator configuration."""
+        if 0 in meas_levels:
+            warn('Measurement level 0 not supported in pulse simulator.')
+            tmp = copy.copy(meas_levels)
+            tmp.remove(0)
+            return tmp
+        return meas_levels

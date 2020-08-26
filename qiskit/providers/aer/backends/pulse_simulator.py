@@ -169,13 +169,8 @@ class PulseSimulator(AerBackend):
         Returns:
             dict: return a dictionary of results.
         """
-        config = qobj.config
-        config.qubit_freq_est = self.defaults().qubit_freq_est
-
-        # preserve overriding of system model at run time
-        system_model = getattr(qobj.config, 'system_model', None)
-
-        return pulse_controller(qobj, system_model, config)
+        qobj.config.qubit_freq_est = self.defaults().qubit_freq_est
+        return pulse_controller(qobj)
 
     def _set_option(self, key, value):
         """Set pulse simulation options and update backend."""

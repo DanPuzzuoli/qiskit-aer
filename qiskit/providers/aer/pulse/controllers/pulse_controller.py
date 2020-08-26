@@ -29,13 +29,11 @@ from .mc_controller import run_monte_carlo_experiments
 from .pulse_utils import get_ode_rhs_functor
 
 
-def pulse_controller(qobj, system_model, backend_options):
+def pulse_controller(qobj):
     """ Interprets PulseQobj input, runs simulations, and returns results
 
     Parameters:
-        qobj (qobj): pulse qobj containing a list of pulse schedules
-        system_model (PulseSystemModel): contains system model information
-        backend_options (dict): dict of options, which overrides other parameters
+        qobj (PulseQobj): pulse qobj containing a list of pulse schedules
 
     Returns:
         list: simulation results
@@ -47,17 +45,13 @@ def pulse_controller(qobj, system_model, backend_options):
     pulse_sim_desc = PulseSimDescription()
     pulse_de_model = PulseInternalDEModel()
 
-    if backend_options is None:
-        backend_options = {}
-
-    noise_model = backend_options.get('noise_model', None)
-
-    # post warnings for unsupported features
-    _unsupported_warnings(noise_model)
+    config = qobj.config
 
     # ###############################
     # ### Extract model parameters
     # ###############################
+
+    system_model = getattr(config, 'system_model')
 
     # Get qubit list and number
     qubit_list = system_model.subsystem_list
@@ -83,8 +77,8 @@ def pulse_controller(qobj, system_model, backend_options):
     estates = [qobj_gen.state(state) for state in ham_model._estates.T[:]]
 
     # initial state set here
-    if 'initial_state' in backend_options:
-        pulse_sim_desc.initial_state = Qobj(backend_options['initial_state'])
+    if hasattr(config, 'initial_state'):
+        pulse_sim_desc.initial_state = Qobj(config.initial_state)
     else:
         pulse_sim_desc.initial_state = estates[0]
 
@@ -95,6 +89,11 @@ def pulse_controller(qobj, system_model, backend_options):
     pulse_de_model.dt = system_model.dt
 
     # Parse noise
+    noise_model = getattr(config, 'noise_model', None)
+
+    # post warnings for unsupported features
+    _unsupported_warnings(noise_model)
+
     if noise_model:
         noise = NoiseParser(noise_dict=noise_model, dim_osc=dim_osc, dim_qub=dim_qub)
         noise.parse()
@@ -109,8 +108,7 @@ def pulse_controller(qobj, system_model, backend_options):
     digested_qobj = digest_pulse_qobj(qobj,
                                       pulse_de_model.channels,
                                       system_model.dt,
-                                      qubit_list,
-                                      backend_options)
+                                      qubit_list)
 
     # extract simulation-description level qobj content
     pulse_sim_desc.shots = digested_qobj.shots
@@ -132,9 +130,9 @@ def pulse_controller(qobj, system_model, backend_options):
 
     # if it wasn't specified in the PulseQobj, draw from system_model
     if qubit_lo_freq is None:
-        default_freq = backend_options.get('qubit_freq_est', [np.inf])
+        default_freq = getattr(config, 'qubit_freq_est', [np.inf])
         if default_freq != [np.inf]:
-            qubit_lo_freq = backend_options['qubit_freq_est']
+            qubit_lo_freq = default_freq
 
     # if still None, or is the placeholder value draw from the Hamiltonian
     if qubit_lo_freq is None:
@@ -148,14 +146,15 @@ def pulse_controller(qobj, system_model, backend_options):
     # ### Parse backend_options
     # # solver-specific information should be extracted in the solver
     # ###############################
-    pulse_sim_desc.seed = int(backend_options['seed']) if 'seed' in backend_options else None
-    pulse_sim_desc.q_level_meas = int(backend_options.get('q_level_meas', 1))
+
+    pulse_sim_desc.seed = int(config.seed) if hasattr(config, 'seed') else None
+    pulse_sim_desc.q_level_meas = int(getattr(config, 'q_level_meas', 1))
 
     # solver options
     allowed_solver_options = ['atol', 'rtol', 'nsteps', 'max_step',
                               'num_cpus', 'norm_tol', 'norm_steps',
                               'method']
-    solver_options = backend_options.get('solver_options', {})
+    solver_options = getattr(config, 'solver_options', {})
     for key in solver_options:
         if key not in allowed_solver_options:
             raise Exception('Invalid solver_option: {}'.format(key))

@@ -16,7 +16,6 @@
 "System Model class for system specification for the PulseSimulator"
 
 from warnings import warn
-import numpy as np
 from collections import OrderedDict
 from qiskit.providers import BaseBackend
 from qiskit.providers.aer.aererror import AerError

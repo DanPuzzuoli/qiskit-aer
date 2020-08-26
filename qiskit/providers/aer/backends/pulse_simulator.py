@@ -163,8 +163,7 @@ class PulseSimulator(AerBackend):
         """Execute a qobj on the backend.
 
         Args:
-            qobj (QasmQobj): simulator input.
-            run_config (dict): run config for overriding Qobj config.
+            qobj (PulseQobj): simulator input.
 
         Returns:
             dict: return a dictionary of results.
@@ -189,7 +188,6 @@ class PulseSimulator(AerBackend):
             # if option is hamiltonian, set in configuration and reconstruct pulse system model
             subsystem_list = self._options.get('subsystem_list', None)
             system_model = PulseSystemModel.from_config(self.configuration(),
-                                                        self.defaults(),
                                                         subsystem_list)
             super()._set_option('system_model', system_model)
             self._set_configuration_option(key, value)

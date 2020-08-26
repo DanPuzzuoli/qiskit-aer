@@ -113,8 +113,8 @@ class QasmSimulator(AerBackend):
     * ``method`` (str): Set the simulation method (Default: ``"automatic"``).
 
     * ``precision`` (str): Set the floating point precision for
-      certain simulation methods to either "single" or "double"
-      precision (default: "double").
+      certain simulation methods to either ``"single"`` or ``"double"``
+      precision (default: ``"double"``).
 
     * ``zero_threshold`` (double): Sets the threshold for truncating
       small values to zero in the result data (Default: 1e-10).

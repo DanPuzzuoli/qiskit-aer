@@ -72,7 +72,7 @@ class StatevectorSimulator(AerBackend):
     These will not be stored in the backend and will only apply to that execution.
     They will also override any previously set options.
 
-    For example, to configure a a single-precision  simulator
+    For example, to configure a a single-precision simulator
 
     .. code-block:: python
 

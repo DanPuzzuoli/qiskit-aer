@@ -15,12 +15,15 @@ Qiskit Aer pulse simulator backend.
 """
 
 import logging
+from copy import deepcopy
+from warnings import warn
 from numpy import inf
 from qiskit.providers.models import BackendConfiguration, PulseDefaults
 from qiskit.providers.aer.backends.aerbackend import AerBackend
 from qiskit.providers.aer.pulse.controllers.pulse_controller import pulse_controller
 from qiskit.providers.aer.pulse.system_models.pulse_system_model import PulseSystemModel
 from qiskit.providers.aer.version import __version__
+from qiskit.providers.aer.aererror import AerError
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +40,7 @@ DEFAULT_CONFIGURATION = {
     'open_pulse': True,
     'memory': False,
     'max_shots': int(1e6),
-    'description': 'A pulse-based Hamiltonian simulator for Pulse Qobj files',
+    'description': 'A Pulse-based Hamiltonian simulator for Pulse Qobj files',
     'gates': [],
     'basis_gates': []
 }
@@ -102,11 +105,16 @@ class PulseSimulator(AerBackend):
                  properties=None,
                  defaults=None,
                  provider=None,
+                 system_model=None,
                  **backend_options):
 
         if configuration is None:
             configuration = BackendConfiguration.from_dict(
                 DEFAULT_CONFIGURATION)
+        else:
+            configuration = deepcopy(configuration)
+            configuration.simulator = True
+            _set_config_meas_level(configuration, configuration.meas_levels)
 
         if defaults is None:
             defaults = PulseDefaults(qubit_freq_est=[inf],
@@ -114,6 +122,11 @@ class PulseSimulator(AerBackend):
                                      buffer=0,
                                      cmd_def=[],
                                      pulse_library=[])
+        else:
+            defaults = deepcopy(defaults)
+
+        if properties is not None:
+            properties = deepcopy(properties)
 
         super().__init__(configuration,
                          properties=properties,
@@ -121,17 +134,31 @@ class PulseSimulator(AerBackend):
                          provider=provider,
                          backend_options=backend_options)
 
+        # set up system model
+        subsystem_list = backend_options.get('subsystem_list', None)
+        if system_model is None:
+            if hasattr(configuration, 'hamiltonian'):
+                self._system_model = PulseSystemModel.from_config(configuration,
+                                                                  subsystem_list)
+        else:
+            self._set_system_model(system_model)
+
     @classmethod
     def from_backend(cls, backend, **options):
         """Initialize simulator from backend."""
         configuration = backend.configuration()
-        coupling_map = configuration.coupling_map
+        defaults = backend.defaults()
+        properties = backend.properties()
+
         backend_name = 'pulse_simulator({})'.format(configuration.backend_name)
-        system_model = PulseSystemModel.from_backend(backend,
-                                                     subsystem_list=None)
-        sim = cls(system_model=system_model,
-                  coupling_map=coupling_map,
+        description = 'A Pulse-based simulator configured from the backend: '
+        description += configuration.backend_name
+
+        sim = cls(configuration=configuration,
+                  properties=properties,
+                  defaults=defaults,
                   backend_name=backend_name,
+                  description=description,
                   **options)
         return sim
 
@@ -145,13 +172,90 @@ class PulseSimulator(AerBackend):
         Returns:
             dict: return a dictionary of results.
         """
-        system_model = run_config['system_model']
-        return pulse_controller(qobj, system_model, run_config)
+        # preserve overriding of system model at run time
+        system_model = run_config.get('system_model', self._system_model)
 
-    def defaults(self):
-        """Return defaults.
+        if system_model is None:
+            raise AerError("PulseSimulator requires a system model to run.")
 
-        Returns:
-            PulseDefaults: object for passing assemble.
+        # add qubit_freq_est to the options
+        run_config_new = {**run_config, 'qubit_freq_est': self.defaults().qubit_freq_est}
+
+        return pulse_controller(qobj, system_model, run_config_new)
+
+    def _set_option(self, key, value):
+
+        # first, handle cases that require updating two places
+        if key == 'hamiltonian':
+            # if option is hamiltonian, set in configuration and reconstruct pulse system model
+            setattr(self.configuration(), key, value)
+            subsystem_list = self._options.get('subsystem_list', None)
+            self._system_model = PulseSystemModel.from_config(self.configuration(),
+                                                              self.defaults(),
+                                                              subsystem_list)
+        elif key in ['dt', 'u_channel_lo']:
+            # options in both configuration and system_model
+            setattr(self.configuration(), key, value)
+            if self._system_model is not None:
+                setattr(self._system_model, key, value)
+        # if system model is specified directly
+        elif key == 'system_model':
+            self._set_system_model(value)
+        # remaining options for backend attributes
+        elif hasattr(self.configuration(), key):
+            if key == 'meas_levels':
+                _set_config_meas_level(self.configuration(), value)
+            else:
+                setattr(self.configuration(), key, value)
+        elif hasattr(self.defaults(), key):
+            setattr(self.defaults(), key, value)
+        elif hasattr(self.properties(), key):
+            setattr(self.properties(), key, value)
+        # anything not handled by the above cases
+        else:
+            self._options[key] = value
+
+    def _set_system_model(self, system_model):
+        """Set a system model and extract transfer relevant information to configuration and
+        properties.
         """
-        return self._defaults
+
+        if hasattr(self.configuration(), 'hamiltonian'):
+            warn('''Specifying both a configuration with a Hamiltonian and a system model
+                    may result in inconsistencies.''')
+
+        self._system_model = system_model
+
+        # extract config information
+        for key in ['dt', 'u_channel_lo']:
+            setattr(self.configuration(), key, getattr(self._system_model, key, []))
+
+    def _validate(self, qobj, options):
+        """Validation of qobj. Ensures that exactly one Acquire instruction is present in each
+        schedule.
+        """
+        for exp in qobj.experiments:
+            num_acquires = 0
+            for instruction in exp.instructions:
+                if instruction.name == 'acquire':
+                    num_acquires += 1
+
+                if num_acquires > 1:
+                    raise AerError("PulseSimulator does not support multiple Acquire "
+                                   "instructions in a single schedule.")
+
+            if num_acquires == 0:
+                raise AerError("PulseSimulator requires at least one Acquire "
+                               "instruction per schedule.")
+
+
+
+
+def _set_config_meas_level(configuration, meas_levels):
+    """Function for setting meas_levels in a pulse simulator configuration."""
+    meas_levels = deepcopy(meas_levels)
+    if 0 in meas_levels:
+        warn('Measurement level 0 not supported in pulse simulator.')
+        meas_levels.remove(0)
+
+    configuration.meas_levels = meas_levels

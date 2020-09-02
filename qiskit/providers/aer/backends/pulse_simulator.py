@@ -55,12 +55,25 @@ class PulseSimulator(AerBackend):
     physical system specified by :class:`~qiskit.providers.aer.pulse.PulseSystemModel` objects.
     Results are returned in the same format as when jobs are submitted to actual devices.
 
-    **Example**
+    **Examples**
 
-    To use the simulator, first :func:`~qiskit.assemble` a :class:`PulseQobj` object
-    from a list of pulse :class:`~qiskit.Schedule` objects, using ``backend=PulseSimulator()``.
-    Call the simulator with the :class:`PulseQobj` and a
-    :class:`~qiskit.providers.aer.pulse.PulseSystemModel` object representing the physical system.
+    The minimal information a ``PulseSimulator`` needs to simulate is a
+    :class:`~qiskit.providers.aer.pulse.PulseSystemModel`, which can be supplied either by
+    setting the backend option before calling ``run``, e.g.:
+
+    .. code-block:: python
+        backend_sim = qiskit.providers.aer.PulseSimulator()
+
+        # Set the pulse system model for the simulator
+        backend_sim.set_options(system_model=system_model)
+
+        # Assemble schedules using PulseSimulator as the backend
+        pulse_qobj = assemble(schedules, backend=backend_sim)
+
+        # Run simulation
+        results = backend_sim.run(pulse_qobj)
+
+    or by supplying the system model at runtime, e.g.:
 
     .. code-block:: python
 
@@ -70,7 +83,22 @@ class PulseSimulator(AerBackend):
         pulse_qobj = assemble(schedules, backend=backend_sim)
 
         # Run simulation on a PulseSystemModel object
-        results = backend_sim.run(pulse_qobj, system_model)
+        results = backend_sim.run(pulse_qobj, system_model=system_model)
+
+    Alternatively, an instance of the ``PulseSimulator`` may be further configured to contain more
+    information present in a real backend. The simplest way to do this is to instantiate the
+    ``PulseSimulator`` from a real backend:
+
+    .. code-block:: python
+
+        armonk_sim = qiskit.providers.aer.PulseSimulator.from_backend(FakeArmonk())
+        pulse_qobj = assemble(schedules, backend=armonk_sim)
+        armonk_sim.run(pulse_qobj)
+
+    In the above example, the ``PulseSimulator`` copies all configuration and default data from
+    ``FakeArmonk()``, and furthermore constructs a
+    :class:`~qiskit.providers.aer.pulse.PulseSystemModel` from the model details in the supplied
+    backend.
 
     **Supported PulseQobj parameters**
 
@@ -94,8 +122,7 @@ class PulseSimulator(AerBackend):
 
     **Other options**
 
-    :meth:`PulseSimulator.run` takes an additional ``dict`` argument ``backend_options`` for
-    customization. Accepted keys:
+    Additional valid keyword arguments for ``run()``:
 
     * ``'solver_options'``: A ``dict`` for solver options. Accepted keys
       are ``'atol'``, ``'rtol'``, ``'nsteps'``, ``'max_step'``, ``'num_cpus'``, ``'norm_tol'``,

@@ -96,9 +96,10 @@ class PulseSimulator(AerBackend):
         armonk_sim.run(pulse_qobj)
 
     In the above example, the ``PulseSimulator`` copies all configuration and default data from
-    ``FakeArmonk()``, and furthermore constructs a
+    ``FakeArmonk()``, and as such has the same affect as ``FakeArmonk()`` when passed as an
+    argument to ``assemble``. Furthermore it constructs a
     :class:`~qiskit.providers.aer.pulse.PulseSystemModel` from the model details in the supplied
-    backend.
+    backend, which is then used in simulation.
 
     **Supported PulseQobj parameters**
 

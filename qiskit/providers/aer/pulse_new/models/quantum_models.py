@@ -58,45 +58,6 @@ class HamiltonianModel(OperatorModel):
                          frame=frame,
                          cutoff_freq=cutoff_freq)
 
-
-    @property
-    def frame(self) -> Frame:
-        """Return the frame."""
-        return self._frame
-
-    @frame.setter
-    def frame(self, frame: Union[Operator, np.array, Frame]):
-        """Set the frame. For a HamiltonianModel, we handle the following
-        possibilities:
-
-        - frame is None
-        - frame is a Hermitian operator, in which case it is interpreted
-          as entering the frame of a given Hamiltonian H (corresponding to
-          frame operator F= -1j * H)
-        - frame is anti-Hermitian, in which case H = 1j * F, and the same
-          interpretation as previous point is used for H
-        - frame is already a defined Frame object, in which case the
-          previous point applies.
-        """
-
-        if frame is None:
-            self._frame = Frame(None)
-        else:
-            if isinstance(frame, Frame):
-                self._frame = frame
-            else:
-                if isinstance(frame, Operator):
-                    frame = frame.data
-
-                # if frame operator is Hermitian, assume it is meant to
-                # be a Hamiltonian
-                if np.linalg.norm(frame.conj().transpose() - frame) < 1e-12:
-                    self._frame = Frame(-1j * frame)
-                else:
-                    self._frame = Frame(frame)
-
-        self._reset_internal_ops()
-
     def evaluate(self, time: float, in_frame_basis: bool = False) -> np.array:
         """
         Note: evaluation of OperatorModel gives exp(-tF)@ G(t) @ exp(tF) - F,
@@ -134,3 +95,28 @@ class HamiltonianModel(OperatorModel):
                                              op_to_add_in_fb=op_to_add_in_fb,
                                              operator_in_frame_basis=True,
                                              return_in_frame_basis=in_frame_basis)
+
+class QuantumSystemModel:
+    """A model of a quantum system.
+    """
+
+    def __init__(self,
+                 hamiltonian,
+                 noise_signals,
+                 noise_operators):
+
+        self.hamiltonian = hamiltonian
+        self.noise_signals = VectorSignal(noise_signals)
+        self.noise_operator = noise_operators
+
+    @property
+    def Schrodinger_generator(self):
+        """Convert model to the generator for the schrodinger equation."""
+        pass
+
+    @property
+    def Lindblad_generator(self):
+        """Convert model to the generator for the lindblad equation,
+        along with vectorization information.
+        """
+        pass

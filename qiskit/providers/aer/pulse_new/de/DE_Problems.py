@@ -18,7 +18,7 @@ from warnings import warn
 
 from qiskit.quantum_info.operators import Operator
 from qiskit.providers.aer.pulse_new.models.frame import BaseFrame
-from qiskit.providers.aer.pulse_new.models.hamiltonian_model import HamiltonianModel
+from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel
 from qiskit.providers.aer.pulse_new.models.operator_models import BaseOperatorModel, OperatorModel
 from qiskit.providers.aer.pulse_new.de.type_utils import StateTypeConverter
 
@@ -156,10 +156,6 @@ def SchrodingerProblem(BMDE_Problem):
                                   frame=hamiltonian.frame,
                                   cutoff_freq=hamiltonian.cutoff_freq)
 
-        # if frame is Hermitian, convert to anti-Hermitian
-        if is_hermitian(frame):
-            frame = -1j * frame
-
         super().__init__(generator=generator,
                          y0=y0,
                          t0=t0,
@@ -167,17 +163,6 @@ def SchrodingerProblem(BMDE_Problem):
                          frame=frame,
                          cutoff_freq=cutoff_freq,
                          state_type_converter=state_type_converter)
-
-def is_hermitian(A: Union[np.array, Operator]):
-    if isinstance(A, Operator):
-        A = A.data
-
-    if isinstance(A, np.ndarray):
-        if np.linalg.norm(A.conj().transpose() - A) < 1e-12:
-            return True
-
-    return False
-
 
 def anti_herm_part(A: Union[np.ndarray, Operator]):
     """Get the anti-hermitian part of an operator.

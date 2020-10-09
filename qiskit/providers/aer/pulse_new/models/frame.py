@@ -430,17 +430,21 @@ class Frame(BaseFrame):
 
         self._frame_operator = frame_operator
 
-        # if frame_operator is a 1d array, assume already diagonalized
         if frame_operator is None:
             self._dim = None
             self._frame_diag = None
             self._frame_basis = None
             self._frame_basis_adjoint = None
+        # if frame_operator is a 1d array, assume already diagonalized
         elif isinstance(frame_operator, np.ndarray) and frame_operator.ndim == 1:
+
+            # first check if it is Hermitian, if so convert to anti-Hermitian
+            if np.linalg.norm(frame_operator - frame_operator.conj()) < 1e-10:
+                frame_operator = -1j * frame_operator
 
             # verify that it is anti-hermitian (i.e. purely imaginary)
             if np.linalg.norm(frame_operator + frame_operator.conj()) > 1e-10:
-                raise Exception("""frame_operator must be an
+                raise Exception("""frame_operator must be either a Hermitian or
                                    anti-Hermitian matrix.""")
 
             self._frame_diag = frame_operator
@@ -452,10 +456,14 @@ class Frame(BaseFrame):
             # Ensure that it is an Operator object
             frame_operator = Operator(frame_operator)
 
+            # first check if it is Hermitian, if so convert to anti-Hermitian
+            if np.linalg.norm((frame_operator - frame_operator.adjoint()).data) < 1e-10 :
+                frame_operator = -1j * frame_operator
+
             # verify anti-hermitian
             herm_part = frame_operator + frame_operator.adjoint()
             if herm_part != Operator(np.zeros(frame_operator.dim)):
-                raise Exception("""frame_operator must be an
+                raise Exception("""frame_operator must be either a Hermitian or
                                    anti-Hermitian matrix.""")
 
             # diagonalize with eigh, utilizing assumption of anti-hermiticity

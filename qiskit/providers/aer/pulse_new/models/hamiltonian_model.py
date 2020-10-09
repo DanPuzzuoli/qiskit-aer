@@ -18,10 +18,25 @@ from .frame import Frame
 from .operator_models import OperatorModel
 
 class HamiltonianModel(OperatorModel):
-    """Hamiltonian model
+    """A model of a Hamiltonian, i.e. a time-dependent operator of the form
 
-    ********Add comments about frames being handled assuming the structure
-    of the Schrodinger Equation
+    .. math::
+
+        H(t) = \sum_{i=0}^{k-1} s_i(t) H_i,
+
+    where :math:`H_i` are Hermitian operators, and the :math:`s_i(t)` are
+    time-dependent functions represented by :class:`Signal` objects.
+
+    Functionally this class behaves the same as :class:`OperatorModel`,
+    with the following modifications:
+        - The operators in the linear decomposition are verified to be
+          Hermitian.
+        - Frames are dealt with assuming the structure of the Schrodinger
+          equation. I.e. Evaluating the Hamiltonian :math:`H(t)` in a
+          frame :math:`F = -iH`, evaluates the expression
+          :math:`e^{-tF}H(t)e^{tF} - H`. This is in contrast to
+          the base class :class:`OperatorModel`, which would ordinarily
+          evaluate :math:`e^{-tF}H(t)e^{tF} - F`.
     """
 
     def __init__(self,
@@ -109,7 +124,13 @@ class HamiltonianModel(OperatorModel):
 
         op_combo = self._evaluate_linear_combo(sig_vals)
 
-        return 1j * self.frame.generator_into_frame(time,
-                                                    -1j * op_combo,
-                                                    operator_in_frame_basis=True,
-                                                    return_in_frame_basis=in_frame_basis)
+        op_to_add_in_fb = None
+        if self.frame.frame_operator is not None:
+            op_to_add_in_fb = 1j * np.diag(self.frame.frame_diag)
+
+
+        return self.frame._conjugate_and_add(time,
+                                             op_combo,
+                                             op_to_add_in_fb=op_to_add_in_fb,
+                                             operator_in_frame_basis=True,
+                                             return_in_frame_basis=in_frame_basis)

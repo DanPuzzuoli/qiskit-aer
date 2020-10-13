@@ -52,8 +52,8 @@ class BaseSignal(ABC):
         for x in x_vals:
             sig_vals.append(self.value(x))
 
-        plt.plot(x_vals, np.real(sig_vals))
-        plt.plot(x_vals, np.imag(sig_vals))
+        plt.plot(x_vals, np.real(np.array(sig_vals)))
+        plt.plot(x_vals, np.imag(np.array(sig_vals)))
 
     def plot_envelope(self, t0: float, tf: float, n: int):
         x_vals = np.linspace(t0, tf, n)
@@ -62,8 +62,8 @@ class BaseSignal(ABC):
         for x in x_vals:
             sig_vals.append(self.envelope_value(x))
 
-        plt.plot(x_vals, np.real(sig_vals))
-        plt.plot(x_vals, np.imag(sig_vals))
+        plt.plot(x_vals, np.real(np.array(sig_vals)))
+        plt.plot(x_vals, np.imag(np.array(sig_vals)))
 
 
 class Signal(BaseSignal):

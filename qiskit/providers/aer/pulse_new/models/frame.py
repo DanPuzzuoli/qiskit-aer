@@ -12,7 +12,8 @@
 
 from abc import ABC, abstractmethod
 from typing import Callable, Union, List, Optional, Tuple
-import numpy as np
+import numpy as onp
+import jax.numpy as np
 
 from qiskit.quantum_info.operators import Operator
 
@@ -454,7 +455,7 @@ class Frame(BaseFrame):
         # if not, diagonalize it
         else:
             # Ensure that it is an Operator object
-            frame_operator = Operator(frame_operator)
+            frame_operator = Operator(onp.array(frame_operator))
 
             # first check if it is Hermitian, if so convert to anti-Hermitian
             if np.linalg.norm((frame_operator - frame_operator.adjoint()).data) < 1e-10 :

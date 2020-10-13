@@ -15,7 +15,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Callable, Union
 
-import numpy as np
+import jax.numpy as np
 from matplotlib import pyplot as plt
 
 

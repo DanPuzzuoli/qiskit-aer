@@ -20,7 +20,7 @@ shape. Currently only handled types are numpy arrays, specified via:
     - {'type': 'array', 'shape': tuple}
 """
 
-import numpy as np
+import jax.numpy as np
 
 
 class StateTypeConverter:

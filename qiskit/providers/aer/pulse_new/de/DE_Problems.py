@@ -12,7 +12,7 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
-import numpy as np
+import jax.numpy as np
 from typing import Union, List, Optional
 from warnings import warn
 

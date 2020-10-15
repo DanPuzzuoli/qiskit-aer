@@ -113,7 +113,7 @@ class BMDE_Problem:
         else:
             # if auto, go into the drift part of the generator, otherwise
             # set it to whatever is passed
-            if frame == 'auto':
+            if isinstance(frame, str) and frame == 'auto':
                 self._generator.frame = anti_herm_part(generator.drift)
             else:
                 self._generator.frame = frame
@@ -149,6 +149,9 @@ class SchrodingerProblem(BMDE_Problem):
         operator :math:`H`, in which case it enters the frame :math:`F=-iH`.
         """
 
+        #************
+        # important to test frame handling here
+
         generator = OperatorModel(operators=[-1j * Operator(op) for
                                              op in hamiltonian._operators],
                                   signals=hamiltonian.signals,
@@ -176,7 +179,31 @@ class LindbladProblem(BMDE_Problem):
                  frame: Optional[Union[str, Operator, np.ndarray, BaseFrame]] = 'auto',
                  cutoff_freq: Optional[float] = None,
                  state_type_converter: Optional[StateTypeConverter] = None):
-        pass
+
+        generator = system_model.vectorized_lindblad_generator
+
+        # set frame to drift of hamiltonian
+        # can I leave this? what will happen to dissipators?
+        # also what to do if the Hamiltonian has a frame set already
+        if frame == 'auto':
+            ham_drift = system_model.hamiltonian.drift
+            frame = -1j * vec_commutator(ham_drift)
+
+        # for now just assume a density matrix is given
+        converter = StateTypeConverter.from_outer_instance_inner_type_spec(outer_y=y0,
+                                                                           inner_type_spec={'type': 'array', 'ndim': 1})
+
+        super().__init__(generator=generator,
+                         y0=y0,
+                         t0=t0,
+                         interval=interval,
+                         frame=frame,
+                         cutoff_freq=cutoff_freq,
+                         state_type_converter=converter)
+
+
+
+
 
 
 
@@ -186,3 +213,15 @@ def anti_herm_part(A: Union[np.ndarray, Operator]):
     """Get the anti-hermitian part of an operator.
     """
     return 0.5 * (A - A.conj().transpose())
+
+def vec_commutator(A):
+    """Linear algebraic vectorization of the linear map X -> [A, X]
+    in row-stacking convention.
+
+    Note: this function is also "vectorized" in the programming sense.
+    """
+    iden = np.eye(A.shape[-1])
+    axes = list(range(A.ndim))
+    axes[-1] = axes[-2]
+    axes[-2] += 1
+    return np.kron(A, iden) - np.kron(iden, A.transpose(axes))

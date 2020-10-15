@@ -12,7 +12,7 @@
 
 from typing import Callable, Union, List, Optional
 import numpy as np
-from .signals import VectorSignal, Signal
+from .signals import VectorSignal, Constant, Signal
 from qiskit.quantum_info.operators import Operator
 from .frame import Frame
 from .operator_models import OperatorModel
@@ -83,7 +83,7 @@ class HamiltonianModel(OperatorModel):
 
         sig_vals = self.signals.value(time)
 
-        op_combo = self._evaluate_linear_combo(sig_vals)
+        op_combo = self._evaluate_in_frame_basis_with_cutoffs(sig_vals)
 
         op_to_add_in_fb = None
         if self.frame.frame_operator is not None:
@@ -99,8 +99,10 @@ class HamiltonianModel(OperatorModel):
 class QuantumSystemModel:
     """A model of a quantum system.
 
-    For now, contain a hamiltonian model, a list of coefficients for the noise
-    operators, and a list of noise operators.
+    For now, contains:
+        - a hamiltonian model
+        - a list of noise operators (optional)
+        - a list of noise coefficients (optional)
 
     At the moment not quite sure how a user may want to interact with this.
     Perhaps it should also be an :class:`OperatorModel` subclass?
@@ -108,20 +110,80 @@ class QuantumSystemModel:
 
     def __init__(self,
                  hamiltonian,
-                 noise_signals,
-                 noise_operators):
+                 noise_operators=None,
+                 noise_signals=None):
 
         self.hamiltonian = hamiltonian
-        self.noise_signals = noise_signals
         self.noise_operators = noise_operators
 
-    def lindblad_generator(self):
-        """Get the generator for the vectorized lindblad equation."""
+        if noise_signals is None and noise_operators is not None:
+            noise_signals = [Constant(1.) for _ in noise_operators]
 
-        vec_ham_ops = -1j * vec_commutator(self.hamiltonian._operators)
-        vec_diss_ops = vec_dissipator(self.noise_operators)
+        self.noise_signals = noise_signals
 
-        all_ops = np.append(vec_ham_ops, vec_diss_ops)
+    @property
+    def vectorized_lindblad_generator(self):
+        """Get the `OperatorModel` representing the vectorized Lindblad
+        equation.
+
+        I.e. the Lindblad equation is:
+        .. math::
+            \dot{\rho}(t) = -i[H(t), \rho(t)] + \mathcal{D}(t)(\rho(t)),
+
+        where :math:`\mathcal{D}(t)` is the dissipator portion of the equation,
+        given by
+
+        .. math::
+            \mathcal{D}(t)(\rho(t)) = \sum_j \gamma_j(t) L_j \rho L_j^\dagger - \frac{1}{2} \{L_j^\dagger L_j, \rho\},
+
+        with :math:`[\cdot, \cdot]` and :math:`\{\cdot, \cdot\}` the
+        matrix commutator and anti-commutator, respectively.
+
+
+        """
+
+        # combine operators
+        vec_ham_ops = -1j * vec_commutator(to_array(self.hamiltonian._operators))
+
+        full_operators = None
+        if self.noise_operators is not None:
+            vec_diss_ops = vec_dissipator(to_array(self.noise_operators))
+            full_operators = np.append(vec_ham_ops, vec_diss_ops, axis=0)
+        else:
+            full_operators = vec_ham_ops
+
+        # combine signals
+        # it will take some thought to make this nice but for now I'll just
+        # put it together quickly
+        ham_sigs = self.hamiltonian.signals
+
+        full_signals = None
+        if self.noise_operators is not None:
+            noise_sigs = None
+            if isinstance(self.noise_signals, VectorSignal):
+                noise_sigs = self.noise_signals
+            elif isinstance(self.noise_signals, list):
+                noise_sigs = VectorSignal.from_signal_list(self.noise_signals)
+
+            full_envelope = lambda t: np.append(ham_sigs.envelope(t),
+                                                noise_sigs.envelope(t))
+            full_carrier_freqs = np.append(ham_sigs.carrier_freqs,
+                                          noise_sigs.carrier_freqs)
+
+            full_drift_array = np.append(ham_sigs.drift_array,
+                                         noise_sigs.drift_array)
+
+            full_signals = VectorSignal(envelope=full_envelope,
+                                        carrier_freqs=full_carrier_freqs,
+                                        drift_array=full_drift_array)
+        else:
+            full_signals = ham_sigs
+
+
+        return OperatorModel(operators=full_operators,
+                             signals=full_signals)
+
+
 
 
 
@@ -154,3 +216,20 @@ def vec_dissipator(L):
     # Note: below uses that, if L.ndim==2, LdagL.transpose() == LdagL.conj()
     return np.kron(L, iden) @ np.kron(iden, Lconj) - 0.5 * (np.kron(LdagL, iden) +
             np.kron(iden, LdagL.conj()))
+
+
+def to_array(op: Union[Operator, np.array, List[Operator], List[np.array]]):
+    """Convert an operator, either specified as an `Operator` or an array
+    to an array.
+
+    Args:
+        op: the operator to represent as an array.
+    Returns:
+        np.array: op as an array
+    """
+    if isinstance(op, list):
+        return np.array([to_array(sub_op) for sub_op in op])
+
+    if isinstance(op, Operator):
+        return op.data
+    return op

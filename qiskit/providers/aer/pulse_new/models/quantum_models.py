@@ -98,6 +98,12 @@ class HamiltonianModel(OperatorModel):
 
 class QuantumSystemModel:
     """A model of a quantum system.
+
+    For now, contain a hamiltonian model, a list of coefficients for the noise
+    operators, and a list of noise operators.
+
+    At the moment not quite sure how a user may want to interact with this.
+    Perhaps it should also be an :class:`OperatorModel` subclass?
     """
 
     def __init__(self,
@@ -106,17 +112,45 @@ class QuantumSystemModel:
                  noise_operators):
 
         self.hamiltonian = hamiltonian
-        self.noise_signals = VectorSignal(noise_signals)
-        self.noise_operator = noise_operators
+        self.noise_signals = noise_signals
+        self.noise_operators = noise_operators
 
-    @property
-    def Schrodinger_generator(self):
-        """Convert model to the generator for the schrodinger equation."""
-        pass
+    def lindblad_generator(self):
+        """Get the generator for the vectorized lindblad equation."""
 
-    @property
-    def Lindblad_generator(self):
-        """Convert model to the generator for the lindblad equation,
-        along with vectorization information.
-        """
-        pass
+        vec_ham_ops = -1j * vec_commutator(self.hamiltonian._operators)
+        vec_diss_ops = vec_dissipator(self.noise_operators)
+
+        all_ops = np.append(vec_ham_ops, vec_diss_ops)
+
+
+
+def vec_commutator(A):
+    """Linear algebraic vectorization of the linear map X -> [A, X]
+    in row-stacking convention.
+
+    Note: this function is also "vectorized" in the programming sense.
+    """
+    iden = np.eye(A.shape[-1])
+    axes = list(range(A.ndim))
+    axes[-1] = axes[-2]
+    axes[-2] += 1
+    return np.kron(A, iden) - np.kron(iden, A.transpose(axes))
+
+def vec_dissipator(L):
+    """ Linear algebraic vectorization of the linear map
+    X -> L X L^\dagger - 0.5 * (L^\dagger L X + X L^\dagger L).
+
+    Note: this function is also "vectorized" in the programming sense.
+    """
+    iden = np.eye(L.shape[-1])
+    axes = list(range(L.ndim))
+
+    axes[-1] = axes[-2]
+    axes[-2] += 1
+    Lconj = L.conj()
+    LdagL = Lconj.transpose(axes) @ L
+
+    # Note: below uses that, if L.ndim==2, LdagL.transpose() == LdagL.conj()
+    return np.kron(L, iden) @ np.kron(iden, Lconj) - 0.5 * (np.kron(LdagL, iden) +
+            np.kron(iden, LdagL.conj()))

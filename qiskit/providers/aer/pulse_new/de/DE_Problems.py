@@ -186,8 +186,10 @@ class LindbladProblem(BMDE_Problem):
         # can I leave this? what will happen to dissipators?
         # also what to do if the Hamiltonian has a frame set already
         if frame == 'auto':
-            ham_drift = system_model.hamiltonian.drift
-            frame = -1j * vec_commutator(ham_drift)
+            frame = system_model.hamiltonian.drift
+
+        # assume frame is specified on initial system, so vectorize it
+        frame = vec_commutator(frame)
 
         # for now just assume a density matrix is given
         converter = StateTypeConverter.from_outer_instance_inner_type_spec(outer_y=y0,

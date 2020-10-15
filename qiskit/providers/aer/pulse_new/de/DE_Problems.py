@@ -18,7 +18,7 @@ from warnings import warn
 
 from qiskit.quantum_info.operators import Operator
 from qiskit.providers.aer.pulse_new.models.frame import BaseFrame
-from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel
+from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, QuantumSystemModel
 from qiskit.providers.aer.pulse_new.models.operator_models import BaseOperatorModel, OperatorModel
 from qiskit.providers.aer.pulse_new.de.type_utils import StateTypeConverter
 
@@ -128,7 +128,7 @@ class BMDE_Problem:
         if cutoff_freq is not None:
             self._generator.cutoff_freq = cutoff_freq
 
-def SchrodingerProblem(BMDE_Problem):
+class SchrodingerProblem(BMDE_Problem):
     """A Schrodinger equation problem, where the generator is of the form
     :math:`G(t) = -i H(t)`, with :math:`H(t)` a Hamiltonian given by an
     instance of :class:`HamiltonianModel`.
@@ -163,6 +163,24 @@ def SchrodingerProblem(BMDE_Problem):
                          frame=frame,
                          cutoff_freq=cutoff_freq,
                          state_type_converter=state_type_converter)
+
+class LindbladProblem(BMDE_Problem):
+    """Define a density matrix problem.
+    """
+
+    def __init__(self,
+                 system_model: QuantumSystemModel,
+                 y0: Optional[np.ndarray] = None,
+                 t0: Optional[float] = None,
+                 interval: Optional[List[float]] = None,
+                 frame: Optional[Union[str, Operator, np.ndarray, BaseFrame]] = 'auto',
+                 cutoff_freq: Optional[float] = None,
+                 state_type_converter: Optional[StateTypeConverter] = None):
+        pass
+
+
+
+
 
 def anti_herm_part(A: Union[np.ndarray, Operator]):
     """Get the anti-hermitian part of an operator.

@@ -189,7 +189,15 @@ class QuantumSystemModel:
 
 def vec_commutator(A):
     """Linear algebraic vectorization of the linear map X -> [A, X]
-    in row-stacking convention.
+    in column-stacking convention. In column-stacking convention we have
+
+    .. math::
+        vec(ABC) = C^T \otimes A vec(B),
+
+    so for the commutator we have
+
+    .. math::
+        [A, \cdot] = A \cdot - \cdot A \mapsto id \otimes A - A^T \otimes id
 
     Note: this function is also "vectorized" in the programming sense.
     """
@@ -197,11 +205,17 @@ def vec_commutator(A):
     axes = list(range(A.ndim))
     axes[-1] = axes[-2]
     axes[-2] += 1
-    return np.kron(A, iden) - np.kron(iden, A.transpose(axes))
+    return np.kron(iden, A) - np.kron(A.transpose(axes), iden)
 
 def vec_dissipator(L):
     """ Linear algebraic vectorization of the linear map
-    X -> L X L^\dagger - 0.5 * (L^\dagger L X + X L^\dagger L).
+    X -> L X L^\dagger - 0.5 * (L^\dagger L X + X L^\dagger L)
+    in column stacking convention.
+
+    This gives
+
+    .. math::
+        \overline{L} \otimes L - 0.5(id \otimes L^\dagger L + (L^\dagger L)^T \otimes id)
 
     Note: this function is also "vectorized" in the programming sense.
     """
@@ -212,11 +226,21 @@ def vec_dissipator(L):
     axes[-2] += 1
     Lconj = L.conj()
     LdagL = Lconj.transpose(axes) @ L
+    LdagLtrans = LdagL.transpose(axes)
+
+    return np.kron(Lconj, iden) @ np.kron(iden, L) - 0.5 * (np.kron(iden, LdagL) +
+                                                            np.kron(LdagLtrans, iden))
+
+
+    """
+    #Old rowstacking
+    Lconj = L.conj()
+    LdagL = Lconj.transpose(axes) @ L
 
     # Note: below uses that, if L.ndim==2, LdagL.transpose() == LdagL.conj()
     return np.kron(L, iden) @ np.kron(iden, Lconj) - 0.5 * (np.kron(LdagL, iden) +
             np.kron(iden, LdagL.conj()))
-
+    """
 
 def to_array(op: Union[Operator, np.array, List[Operator], List[np.array]]):
     """Convert an operator, either specified as an `Operator` or an array

@@ -463,7 +463,7 @@ class Frame(BaseFrame):
 
             # verify anti-hermitian
             herm_part = frame_operator + frame_operator.adjoint()
-            
+
             if herm_part != Operator(onp.zeros(frame_operator.dim)):
                 raise Exception("""frame_operator must be either a Hermitian or
                                    anti-Hermitian matrix.""")

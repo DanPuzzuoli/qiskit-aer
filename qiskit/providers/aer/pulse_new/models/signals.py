@@ -16,6 +16,8 @@ from abc import ABC, abstractmethod
 from typing import List, Callable, Union
 
 import jax.numpy as np
+from jax.lax import while_loop
+from jax.ops import index
 from matplotlib import pyplot as plt
 
 
@@ -139,9 +141,9 @@ class PiecewiseConstant(BaseSignal):
         self._dt = dt
 
         if samples is not None:
-            self._samples = [_ for _ in samples]
+            self._samples = samples
         else:
-            self._samples = [0] * duration
+            self._samples = np.array([0] * duration)
 
         self._start_time = start_time
 
@@ -181,11 +183,13 @@ class PiecewiseConstant(BaseSignal):
 
     def envelope_value(self, t: float = 0.) -> complex:
 
-        idx = int((t - self._start_time) // self._dt)
+        # this is some weird jax stuff to force the int casting to work
+        # both for abstract types as well as for concrete floats
+        idx = np.array(((t - self._start_time) // self._dt)).astype(int)
 
         # if the index is beyond the final time, return 0
-        if idx >= self.duration or idx < 0:
-            return 0.0j
+        #if idx >= self.duration or idx < 0:
+        #    return 0.0j
 
         return self._samples[idx]
 

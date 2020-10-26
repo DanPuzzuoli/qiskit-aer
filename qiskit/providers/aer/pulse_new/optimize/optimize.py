@@ -13,8 +13,8 @@ import os
 
 # this was suggested in jax github issue to restrict XLA compilation to only one thread
 # note the space after the first line needs to be there!
-os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false "
-                          "intra_op_parallelism_threads=1")
+#os.environ["XLA_FLAGS"] = ("--xla_cpu_multi_thread_eigen=false "
+#                          "intra_op_parallelism_threads=1")
 config.update("jax_enable_x64", True)
 
 def normalize_objective_bfgs(obj,

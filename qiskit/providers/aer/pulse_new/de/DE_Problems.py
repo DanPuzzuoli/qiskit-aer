@@ -204,8 +204,6 @@ class LindbladProblem(BMDE_Problem):
                          state_type_converter=converter)
 
 
-
-
 def anti_herm_part(A: Union[np.ndarray, Operator]):
     """Get the anti-hermitian part of an operator.
     """

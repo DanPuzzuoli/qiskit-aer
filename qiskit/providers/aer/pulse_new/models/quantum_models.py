@@ -12,7 +12,7 @@
 
 from typing import Callable, Union, List, Optional
 import numpy as np
-from .signals import VectorSignal, Constant, Signal
+from .signals import VectorSignal, Constant, Signal, BaseSignal
 from qiskit.quantum_info.operators import Operator
 from .frame import Frame
 from .operator_models import OperatorModel
@@ -27,8 +27,8 @@ class HamiltonianModel(OperatorModel):
     where :math:`H_i` are Hermitian operators, and the :math:`s_i(t)` are
     time-dependent functions represented by :class:`Signal` objects.
 
-    Functionally this class behaves the same as :class:`OperatorModel`,
-    with the following modifications:
+    Currently the functionality of this class is as a subclass of
+    :class:`OperatorModel`, with the following modifications:
         - The operators in the linear decomposition are verified to be
           Hermitian.
         - Frames are dealt with assuming the structure of the Schrodinger
@@ -45,13 +45,28 @@ class HamiltonianModel(OperatorModel):
                  signal_mapping: Optional[Callable] = None,
                  frame: Optional[Union[Operator, np.array]] = None,
                  cutoff_freq: Optional[float] = None):
+        """Initialize, ensuring that the operators are Hermitian.
 
+        Args:
+            operators: list of Operator objects.
+            signals: Specifiable as either a VectorSignal, a list of
+                     Signal objects, or as the inputs to signal_mapping.
+                     OperatorModel can be instantiated without specifying
+                     signals, but it can not perform any actions without them.
+            signal_mapping: a function returning either a
+                            VectorSignal or a list of Signal objects.
+            frame: Rotating frame operator. If specified with a 1d
+                            array, it is interpreted as the diagonal of a
+                            diagonal matrix.
+            cutoff_freq: Frequency cutoff when evaluating the model.
+        """
+
+        # verify operators are Hermitian, and if so instantiate
         for operator in operators:
             if np.linalg.norm((operator.adjoint() - operator).data) > 1e-10:
                 raise Exception("""HamiltonianModel only accepts Hermitian
                                     operators.""")
 
-        # allow OperatorModel to instantiate everything but frame
         super().__init__(operators=operators,
                          signals=signals,
                          signal_mapping=signal_mapping,
@@ -59,14 +74,12 @@ class HamiltonianModel(OperatorModel):
                          cutoff_freq=cutoff_freq)
 
     def evaluate(self, time: float, in_frame_basis: bool = False) -> np.array:
-        """
-        Note: evaluation of OperatorModel gives exp(-tF)@ G(t) @ exp(tF) - F,
-        however in this case we have F = -i H0, and what we want is
-        exp(-tF) @ H(t) @ exp(tF) - H0, where G(t) = -i H(t).
+        """Evaluate the Hamiltonian at a given time.
 
-        To utilize the existing functions, we multiply the evaluated H(t)
-        from evaluate_linear_combo by -1j, then after mapping into the frame
-        undo this via multiplication by 1j.
+        Note: This function from :class:`OperatorModel` needs to be overridden,
+        due to frames for Hamiltonians being relative to the Schrodinger
+        equation, rather than the Hamiltonian itself.
+        See the class doc string for details.
 
         Args:
             time: Time to evaluate the model
@@ -87,7 +100,7 @@ class HamiltonianModel(OperatorModel):
 
         op_to_add_in_fb = None
         if self.frame.frame_operator is not None:
-            op_to_add_in_fb = 1j * np.diag(self.frame.frame_diag)
+            op_to_add_in_fb = -1j * np.diag(self.frame.frame_diag)
 
 
         return self.frame._conjugate_and_add(time,
@@ -97,23 +110,47 @@ class HamiltonianModel(OperatorModel):
                                              return_in_frame_basis=in_frame_basis)
 
 class QuantumSystemModel:
-    """A model of a quantum system.
+    """A model of a quantum system, consisting of a :class:`HamiltonianModel`
+    and an optional description of dissipative dynamics.
 
-    For now, contains:
-        - a hamiltonian model
-        - a list of noise operators (optional)
-        - a list of noise coefficients (optional)
+    Dissipation terms are understood in terms of the Lindblad master
+    equation:
 
-    At the moment not quite sure how a user may want to interact with this.
-    Perhaps it should also be an :class:`OperatorModel` subclass?
+    .. math::
+        \dot{\rho}(t) = -i[H(t), \rho(t)] + \mathcal{D}(t)(\rho(t)),
+
+    where :math:`\mathcal{D}(t)` is the dissipator portion of the equation,
+    given by
+
+    .. math::
+        \mathcal{D}(t)(\rho(t)) = \sum_j \gamma_j(t) L_j \rho L_j^\dagger - \frac{1}{2} \{L_j^\dagger L_j, \rho\},
+
+    with :math:`[\cdot, \cdot]` and :math:`\{\cdot, \cdot\}` the
+    matrix commutator and anti-commutator, respectively. In the above:
+        - :math:`H(t)` denotes the Hamiltonian,
+        - :math:`L_j` denotes the :math:`j^{th}` noise, or Lindblad,
+          operator, and
+        - :math:`\gamma_j(t)` denotes the signal corresponding to the
+          :math:`j^{th}` Lindblad operator.
     """
 
     def __init__(self,
-                 hamiltonian,
-                 noise_operators=None,
-                 noise_signals=None):
+                 hamiltonian: HamiltonianModel,
+                 noise_operators: Optional[List[Operator]] = None,
+                 noise_signals: Optional[Union[List[BaseSignal], VectorSignal]] = None):
+        """Initialize. Noise parameters are optional. If `noise_operators`
+        is specified but `noise_signals` is left as `None`, then internally
+        sets the coefficient for each noise operator to `Constant(1.)`.
+
+        Args:
+            hamiltonian: the Hamiltonian.
+            noise_operators: list of dissipation operators.
+            noise_signals: list of time-dependent signals for the dissipation
+                           operators.
+        """
 
         self.hamiltonian = hamiltonian
+
         self.noise_operators = noise_operators
 
         if noise_signals is None and noise_operators is not None:
@@ -123,23 +160,25 @@ class QuantumSystemModel:
 
     @property
     def vectorized_lindblad_generator(self):
-        """Get the `OperatorModel` representing the vectorized Lindblad
-        equation.
+        """Get the :class:`OperatorModel` representing the vectorized Lindblad
+        equation (described in the class doc string), in column-stacking
+        convention.
 
-        I.e. the Lindblad equation is:
-        .. math::
-            \dot{\rho}(t) = -i[H(t), \rho(t)] + \mathcal{D}(t)(\rho(t)),
+        In column stacking convention, the map :math:`X \mapsto -i[H(t), X]`
+        is mapped to :math:`-i(id \otimes H(t) - H(t)^T \otimes id)`,
+        and a dissipation term
+        :math:`X \mapsto LXL^\dagger - \frac{1}{2}\{L^\dagger L,X\}` is
+        given as
+        :math:`\overline{L} \otimes L - \frac{1}{2}(id \otimes L^\daggerL + \overline{L^\dagger L} \otimes id)`.
 
-        where :math:`\mathcal{D}(t)` is the dissipator portion of the equation,
-        given by
+        This function turns every operator in the :class:`HamiltonianModel`
+        into the vectorized version of :math:`-i[H_j, \cdot]`, every
+        operator in `self.noise_operators` into the vectorized dissipator
+        above, and concatenates these lists of operators, as well as the
+        signals corresponding to both, to form a new :class:`OperatorModel`.
 
-        .. math::
-            \mathcal{D}(t)(\rho(t)) = \sum_j \gamma_j(t) L_j \rho L_j^\dagger - \frac{1}{2} \{L_j^\dagger L_j, \rho\},
-
-        with :math:`[\cdot, \cdot]` and :math:`\{\cdot, \cdot\}` the
-        matrix commutator and anti-commutator, respectively.
-
-
+        Returns:
+            OperatorModel: corresponding to vectorized Lindblad equation.
         """
 
         # combine operators
@@ -184,9 +223,6 @@ class QuantumSystemModel:
                              signals=full_signals)
 
 
-
-
-
 def vec_commutator(A):
     """Linear algebraic vectorization of the linear map X -> [A, X]
     in column-stacking convention. In column-stacking convention we have
@@ -194,7 +230,7 @@ def vec_commutator(A):
     .. math::
         vec(ABC) = C^T \otimes A vec(B),
 
-    so for the commutator we have
+    so for the commutator, we have
 
     .. math::
         [A, \cdot] = A \cdot - \cdot A \mapsto id \otimes A - A^T \otimes id
@@ -230,17 +266,6 @@ def vec_dissipator(L):
 
     return np.kron(Lconj, iden) @ np.kron(iden, L) - 0.5 * (np.kron(iden, LdagL) +
                                                             np.kron(LdagLtrans, iden))
-
-
-    """
-    #Old rowstacking
-    Lconj = L.conj()
-    LdagL = Lconj.transpose(axes) @ L
-
-    # Note: below uses that, if L.ndim==2, LdagL.transpose() == LdagL.conj()
-    return np.kron(L, iden) @ np.kron(iden, Lconj) - 0.5 * (np.kron(LdagL, iden) +
-            np.kron(iden, LdagL.conj()))
-    """
 
 def to_array(op: Union[Operator, np.array, List[Operator], List[np.array]]):
     """Convert an operator, either specified as an `Operator` or an array

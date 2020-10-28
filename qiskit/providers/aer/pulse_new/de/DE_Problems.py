@@ -20,7 +20,7 @@ from qiskit.quantum_info.operators import Operator
 from qiskit.providers.aer.pulse_new.models.frame import BaseFrame
 from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, QuantumSystemModel
 from qiskit.providers.aer.pulse_new.models.operator_models import BaseOperatorModel, OperatorModel
-from qiskit.providers.aer.pulse_new.de.type_utils import StateTypeConverter
+from qiskit.providers.aer.pulse_new.type_utils import StateTypeConverter
 
 class BMDE_Problem:
     """Class for representing Bilinear Matrix Differential Equations (BMDEs),

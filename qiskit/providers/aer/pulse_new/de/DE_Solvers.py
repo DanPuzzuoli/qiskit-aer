@@ -18,7 +18,7 @@ from typing import Callable, Union, List, Optional
 from .DE_Methods import ODE_Method, method_from_string
 from .DE_Problems import BMDE_Problem
 from .DE_Options import DE_Options
-from .type_utils import StateTypeConverter
+from ..type_utils import StateTypeConverter
 
 class BMDE_Solver:
     """Solver class for differential equations specified in

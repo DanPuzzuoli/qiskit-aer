@@ -208,23 +208,3 @@ def anti_herm_part(A: Union[np.ndarray, Operator]):
     """Get the anti-hermitian part of an operator.
     """
     return 0.5 * (A - A.conj().transpose())
-
-def vec_commutator(A):
-    """Linear algebraic vectorization of the linear map X -> [A, X]
-    in column-stacking convention. In column-stacking convention we have
-
-    .. math::
-        vec(ABC) = C^T \otimes A vec(B),
-
-    so for the commutator we have
-
-    .. math::
-        [A, \cdot] = A \cdot - \cdot A \mapsto id \otimes A - A^T \otimes id
-
-    Note: this function is also "vectorized" in the programming sense.
-    """
-    iden = np.eye(A.shape[-1])
-    axes = list(range(A.ndim))
-    axes[-1] = axes[-2]
-    axes[-2] += 1
-    return np.kron(iden, A) - np.kron(A.transpose(axes), iden)

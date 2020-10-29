@@ -13,23 +13,27 @@
 # that they have been altered from the originals.
 # pylint: disable=invalid-name
 
-"""Utilities for type handling/conversion for DE classes.
-
-A type specification is a dictionary describing a specific expected type, e.g. an array of a given
-shape. Currently only handled types are numpy arrays, specified via:
-    - {'type': 'array', 'shape': tuple}
+"""Utilities for type handling/conversion, primarily dealing with
+reshaping arrays, and handling qiskit types that wrap arrays.
 """
 
 import numpy as np
 
 
 class StateTypeConverter:
-    """Contains descriptions of two type specifications for DE solvers/methods, with functions for
-    converting states and rhs functions between representations.
+    """Contains descriptions of two type specifications for DE solvers/methods,
+    with functions for converting states and rhs functions between
+    representations.
 
-    While this class stores exact type specifications, it can be instantiated with a
-    concrete type and a more general type. This facilitates the situation
-    in which a solver requires a 1d array, which is specified by the type:
+    A type specification is a `dict` describing a specific expected type,
+    e.g. an array of a given
+    shape. Currently only handled types are numpy arrays, specified via:
+        - {'type': 'array', 'shape': tuple}
+
+    While this class stores exact type specifications, it can be
+    instantiated with a concrete type and a more general type.
+    This facilitates the situation in which a solver requires a 1d array,
+    which is specified by the type:
         - {'type': 'array', 'ndim': 1}
     """
 
@@ -58,8 +62,9 @@ class StateTypeConverter:
                        inner_y,
                        outer_y=None,
                        order='F'):
-        """Instantiate from concrete instances. Type of instances must be supported by
-        type_spec_from_instance. If outer_y is None the outer type is set to the inner type
+        """Instantiate from concrete instances. Type of instances must
+        be supported by type_spec_from_instance. If outer_y is None the outer
+        type is set to the inner type.
 
         Args:
             inner_y (array): concrete representative of inner type
@@ -82,8 +87,9 @@ class StateTypeConverter:
                                             outer_y,
                                             inner_type_spec=None,
                                             order='F'):
-        """Instantiate from concrete instance of the outer type, and an inner type-spec.
-        The inner type spec can be either be fully specified, or be more general (i.e. to
+        """Instantiate from concrete instance of the outer type,
+        and an inner type-spec. The inner type spec can be either
+        be fully specified, or be more general (i.e. to
         facilitate the situation in which a solver needs a 1d array).
 
         Accepted general data types:
@@ -99,7 +105,8 @@ class StateTypeConverter:
             StateTypeConverter: type converter as specified by args
 
         Raises:
-            Exception: if inner_type_spec is not properly specified or is not a handled type
+            Exception: if inner_type_spec is not properly specified or is
+            not a handled type
         """
 
         # if no inner_type_spec given just instantiate both inner and outer to the outer_y
@@ -156,8 +163,9 @@ class StateTypeConverter:
         Assumptions:
             - For rhs_funcs['generator'], either inner_type == outer_type, or
               outer_type = {'type': 'array', 'shape': (d0,d1)} and
-              inner_type = {'type': 'array', 'shape': (d0*d1,)}, i.e. the internal representation
-              is the vectorized version of the outer
+              inner_type = {'type': 'array', 'shape': (d0*d1,)},
+              i.e. the internal representation is the vectorized version of
+              the outer.
 
         Returns:
             dict: transformed rhs funcs
@@ -189,12 +197,13 @@ class StateTypeConverter:
             else:
 
                 # raise exceptions based on assumptions
-                if (self.inner_type_spec['type'] != 'array') or (self.outer_type_spec['type'] != 'array'):
-                    raise Exception("""RHS generator transformation only valid for state types
-                                       np.array.""")
+                if ((self.inner_type_spec['type'] != 'array') or
+                    (self.outer_type_spec['type'] != 'array')):
+                    raise Exception("""RHS generator transformation only
+                                       valid for state types np.array.""")
                 if len(self.inner_type_spec['shape']) != 1:
-                    raise Exception("""RHS generator transformation only valid if inner_type is
-                                       1d.""")
+                    raise Exception("""RHS generator transformation only valid
+                                       if inner_type is 1d.""")
 
                 if self.order == 'C':
                     # create identity of size the second dimension of the
@@ -222,9 +231,9 @@ def convert_state(y, type_spec, order='F'):
     Accepted values of type_spec are given at the beginning of the file.
 
     Args:
-        y: the state to convert
-        type_spec (dict): the type description to convert to
-        order (str): order argument for any array reshaping
+        y: the state to convert.
+        type_spec (dict): the type description to convert to.
+        order (str): order argument for any array reshaping function.
     """
 
     new_y = None
@@ -248,3 +257,52 @@ def type_spec_from_instance(y):
         type_spec['shape'] = y.shape
 
     return type_spec
+
+def vec_commutator(A: np.array):
+    """Linear algebraic vectorization of the linear map X -> [A, X]
+    in column-stacking convention. In column-stacking convention we have
+
+    .. math::
+        vec(ABC) = C^T \otimes A vec(B),
+
+    so for the commutator we have
+
+    .. math::
+        [A, \cdot] = A \cdot - \cdot A \mapsto id \otimes A - A^T \otimes id
+
+    Note: this function is also "vectorized" in the programming sense.
+
+    Args:
+        A: Either a 2d array representing the matrix A described above,
+           or a 3d array representing a list of matrices.
+    """
+    iden = np.eye(A.shape[-1])
+    axes = list(range(A.ndim))
+    axes[-1] = axes[-2]
+    axes[-2] += 1
+    return np.kron(iden, A) - np.kron(A.transpose(axes), iden)
+
+def vec_dissipator(L: np.array):
+    """ Linear algebraic vectorization of the linear map
+    X -> L X L^\dagger - 0.5 * (L^\dagger L X + X L^\dagger L)
+    in column stacking convention.
+
+    This gives
+
+    .. math::
+        \overline{L} \otimes L - 0.5(id \otimes L^\dagger L +
+            (L^\dagger L)^T \otimes id)
+
+    Note: this function is also "vectorized" in the programming sense.
+    """
+    iden = np.eye(L.shape[-1])
+    axes = list(range(L.ndim))
+
+    axes[-1] = axes[-2]
+    axes[-2] += 1
+    Lconj = L.conj()
+    LdagL = Lconj.transpose(axes) @ L
+    LdagLtrans = LdagL.transpose(axes)
+
+    return (np.kron(Lconj, iden) @ np.kron(iden, L)
+            - 0.5 * (np.kron(iden, LdagL) + np.kron(LdagLtrans, iden)))

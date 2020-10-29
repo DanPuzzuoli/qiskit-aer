@@ -16,6 +16,7 @@ from .signals import VectorSignal, Constant, Signal, BaseSignal
 from qiskit.quantum_info.operators import Operator
 from .frame import Frame
 from .operator_models import OperatorModel
+from ..type_utils import vec_commutator, vec_dissipator
 
 class HamiltonianModel(OperatorModel):
     """A model of a Hamiltonian, i.e. a time-dependent operator of the form
@@ -222,50 +223,6 @@ class QuantumSystemModel:
         return OperatorModel(operators=full_operators,
                              signals=full_signals)
 
-
-def vec_commutator(A):
-    """Linear algebraic vectorization of the linear map X -> [A, X]
-    in column-stacking convention. In column-stacking convention we have
-
-    .. math::
-        vec(ABC) = C^T \otimes A vec(B),
-
-    so for the commutator, we have
-
-    .. math::
-        [A, \cdot] = A \cdot - \cdot A \mapsto id \otimes A - A^T \otimes id
-
-    Note: this function is also "vectorized" in the programming sense.
-    """
-    iden = np.eye(A.shape[-1])
-    axes = list(range(A.ndim))
-    axes[-1] = axes[-2]
-    axes[-2] += 1
-    return np.kron(iden, A) - np.kron(A.transpose(axes), iden)
-
-def vec_dissipator(L):
-    """ Linear algebraic vectorization of the linear map
-    X -> L X L^\dagger - 0.5 * (L^\dagger L X + X L^\dagger L)
-    in column stacking convention.
-
-    This gives
-
-    .. math::
-        \overline{L} \otimes L - 0.5(id \otimes L^\dagger L + (L^\dagger L)^T \otimes id)
-
-    Note: this function is also "vectorized" in the programming sense.
-    """
-    iden = np.eye(L.shape[-1])
-    axes = list(range(L.ndim))
-
-    axes[-1] = axes[-2]
-    axes[-2] += 1
-    Lconj = L.conj()
-    LdagL = Lconj.transpose(axes) @ L
-    LdagLtrans = LdagL.transpose(axes)
-
-    return np.kron(Lconj, iden) @ np.kron(iden, L) - 0.5 * (np.kron(iden, LdagL) +
-                                                            np.kron(LdagLtrans, iden))
 
 def to_array(op: Union[Operator, np.array, List[Operator], List[np.array]]):
     """Convert an operator, either specified as an `Operator` or an array

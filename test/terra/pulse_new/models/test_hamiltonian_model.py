@@ -9,7 +9,7 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
-"""tests for quantum_models.py"""
+"""tests for quantum_models.HamiltonianModel"""
 
 import unittest
 import numpy as np

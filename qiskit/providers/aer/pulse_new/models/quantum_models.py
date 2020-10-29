@@ -64,7 +64,11 @@ class HamiltonianModel(OperatorModel):
 
         # verify operators are Hermitian, and if so instantiate
         for operator in operators:
-            if np.linalg.norm((operator.adjoint() - operator).data) > 1e-10:
+            if isinstance(operator, Operator):
+                operator = operator.data
+
+            if np.linalg.norm((operator.conj().transpose()
+                                - operator).data) > 1e-10:
                 raise Exception("""HamiltonianModel only accepts Hermitian
                                     operators.""")
 

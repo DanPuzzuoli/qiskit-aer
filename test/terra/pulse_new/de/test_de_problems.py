@@ -265,3 +265,91 @@ class TestLindbladProblem(unittest.TestCase):
 
     def assertAlmostEqual(self, A, B, tol=10**-15):
         self.assertTrue(np.abs(A - B).max() < tol)
+
+
+class TestLindbladianProblem(unittest.TestCase):
+    """Test LindbladianProblem.
+
+    For now same tests as for LindbladProblem.
+    """
+
+    def setUp(self):
+        self.X = Operator.from_label('X')
+        self.Y = Operator.from_label('Y')
+        self.Z = Operator.from_label('Z')
+
+        # define a basic model
+        w = 2.
+        r = 0.5
+        operators = [2 * np.pi * self.Z / 2,
+                     2 * np.pi * r * self.X / 2]
+        signals = [Constant(w), Signal(1., w)]
+
+        self.w = 2
+        self.r = r
+        hamiltonian = HamiltonianModel(operators=operators,
+                                       signals=signals)
+
+        self.noise_ops =[Operator(np.array([[0., 1.], [0., 0.]])),
+                         Operator(np.array([[0., 0.], [1., 0.]]))]
+
+        self.basic_q_model = QuantumSystemModel(hamiltonian=hamiltonian,
+                                                noise_operators=self.noise_ops)
+
+        # not a valid density matrix but can be used for testing
+        self.y0 = np.eye(4, dtype=complex)
+
+    def test_basic_generator_operators(self):
+        """Test correct construction of the operators in the vectorized
+        Lindblad generator.
+        """
+
+        l_prob = LindbladianProblem(self.basic_q_model,
+                                 self.y0,
+                                 t0=0.)
+
+        # validate generator matrices
+        self.assertAlmostEqual(l_prob._generator._operators[0].data,
+                               vec_commutator(-1j * 2 * np.pi * self.Z.data / 2))
+        self.assertAlmostEqual(l_prob._generator._operators[1].data,
+                               vec_commutator(-1j * 2 * np.pi * self.r * self.X.data / 2))
+        self.assertAlmostEqual(l_prob._generator._operators[2].data,
+                               vec_dissipator(self.noise_ops[0].data))
+        self.assertAlmostEqual(l_prob._generator._operators[3].data,
+                               vec_dissipator(self.noise_ops[1].data))
+
+    def test_basic_generator_signals(self):
+        """Test correct construction of the signals in the vectorized
+        Lindblad generator.
+        """
+
+        l_prob = LindbladianProblem(self.basic_q_model,
+                                 self.y0,
+                                 t0=0.)
+
+        # validate generator signals
+        t = 0.12314
+        sig_vals = l_prob._generator.signals.value(t)
+        expected = np.array([self.w,
+                             np.exp(1j * 2 * np.pi * self.w * t),
+                             1.,
+                             1.])
+
+        self.assertAlmostEqual(sig_vals, expected)
+
+    def test_basic_generator_frame(self):
+        """Test correct construction of the frame for the vectorized
+        Lindblad generator.
+        """
+
+        l_prob = LindbladianProblem(self.basic_q_model,
+                                 self.y0,
+                                 t0=0.)
+
+        frame_op = l_prob._generator.frame.frame_operator
+        expected = vec_commutator(2 * np.pi * self.w * self.Z.data / 2)
+        
+        self.assertAlmostEqual(frame_op, expected)
+
+    def assertAlmostEqual(self, A, B, tol=10**-15):
+        self.assertTrue(np.abs(A - B).max() < tol)

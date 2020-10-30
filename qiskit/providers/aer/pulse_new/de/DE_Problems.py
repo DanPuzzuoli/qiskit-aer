@@ -140,17 +140,21 @@ class SchrodingerProblem(BMDE_Problem):
                  t0: Optional[float] = None,
                  interval: Optional[List[float]] = None,
                  frame: Optional[Union[str, Operator, np.ndarray, BaseFrame]] = 'auto',
-                 cutoff_freq: Optional[float] = None,
-                 state_type_converter: Optional[StateTypeConverter] = None):
+                 cutoff_freq: Optional[float] = None):
         """Constructs a BMDE_Problem representing the Schrodinger equation.
 
         Additionally, 'frame' may be specified in this class either as a
         standard anti-Hermitian operator :math:`F`, or as a Hermitian
         operator :math:`H`, in which case it enters the frame :math:`F=-iH`.
-        """
 
-        #************
-        # important to test frame handling here
+        Args:
+            hamiltonian: The Hamiltonian to simulate.
+            y0: Initial state, intended to be either a statevector or a Unitary.
+            t0: Initial time.
+            interval: Time interval.
+            frame: Frame to solve in.
+            cutoff_freq: Cutoff frequency to use when solving.
+        """
 
         generator = OperatorModel(operators=[-1j * Operator(op) for
                                              op in hamiltonian._operators],
@@ -164,34 +168,72 @@ class SchrodingerProblem(BMDE_Problem):
                          t0=t0,
                          interval=interval,
                          frame=frame,
-                         cutoff_freq=cutoff_freq,
-                         state_type_converter=state_type_converter)
+                         cutoff_freq=cutoff_freq)
 
 class LindbladProblem(BMDE_Problem):
-    """Define a density matrix problem.
+    """Simulate a density matrix according to the Lindblad equation:
+
+    .. math::
+        \dot{\rho}(t) = -i[H(t), \rho(t)] + \sum_j \gamma_j(t) L_j\rho(t)L_j^\dagger - \frac{1}{2}\{L_j^\daggerL_j, \rho(t)\}
+
+    where:
+        - :math:`H(t)` is the Hamiltonian,
+        - :math:`L_j` are the noise operators, or dissipators, and
+        - :math:`\gamma_j(t)` are the time-dependent dissipator coefficients,
+    specified in terms of a :class:`QuantumSystemModel` object.
     """
 
     def __init__(self,
-                 system_model: QuantumSystemModel,
+                 q_model: QuantumSystemModel,
                  y0: Optional[np.ndarray] = None,
                  t0: Optional[float] = None,
                  interval: Optional[List[float]] = None,
                  frame: Optional[Union[str, Operator, np.ndarray, BaseFrame]] = 'auto',
-                 cutoff_freq: Optional[float] = None,
-                 state_type_converter: Optional[StateTypeConverter] = None):
+                 cutoff_freq: Optional[float] = None):
+        """Constructs a BMDE_Problem representing the Lindblad equation,
+        to act on a density matrix.
 
-        generator = system_model.vectorized_lindblad_generator
+        Additionally, 'frame' may be specified in this class either as a
+        standard anti-Hermitian operator :math:`F`, or as a Hermitian
+        operator :math:`H`, in which case it enters the frame :math:`F=-iH`.
 
-        # set frame to drift of hamiltonian
-        # can I leave this? what will happen to dissipators?
-        # also what to do if the Hamiltonian has a frame set already
-        if frame == 'auto':
-            frame = system_model.hamiltonian.drift
+        Args:
+            hamiltonian: The Hamiltonian to simulate.
+            y0: Initial state, intended to be a density matrix.
+            t0: Initial time.
+            interval: Time interval.
+            frame: Frame to solve in, specified in terms of the original
+                   equation.
+            cutoff_freq: Cutoff frequency to use when solving.
+        """
 
-        # assume frame is specified on initial system, so vectorize it
-        frame = vec_commutator(frame)
+        generator = q_model.vectorized_lindblad_generator
 
-        # for now just assume a density matrix is given
+        # handle frame
+        # if frame is in hamiltonian, set the generator frame to the vectorized
+        # version of it
+        if q_model.hamiltonian.frame.frame_operator is not None:
+            generator.frame = vec_commutator(q_model.hamiltonian.frame.frame_operator)
+
+            # if a frame was additionally specified as an argument, warn
+            if frame != 'auto':
+                warn("""A frame was specified in both the QuantumSystemModel
+                        Hamiltonian and in the LindbladProblem.
+                        Defaulting to use the LindbladProblem frame
+                        and return results in that frame.""")
+                # set frame to auto when constructing BMDE problem to silence
+                # further warnings
+                frame = 'auto'
+
+        else:
+            # if frame is auto, set it to the drift
+            if isinstance(frame, str) and frame == 'auto':
+                frame = q_model.hamiltonian.drift
+
+            # turn frame into the vectorized version
+            frame = vec_commutator(frame)
+
+        # specify the converter to vectorize the density matrix
         converter = StateTypeConverter.from_outer_instance_inner_type_spec(outer_y=y0,
                                                                            inner_type_spec={'type': 'array', 'ndim': 1})
 
@@ -202,6 +244,76 @@ class LindbladProblem(BMDE_Problem):
                          frame=frame,
                          cutoff_freq=cutoff_freq,
                          state_type_converter=converter)
+
+class LindbladianProblem(BMDE_Problem):
+    """Define a Lindbladian simulation problem.
+
+    I.e. Construct the Lindblad equation as in :class:`LindbladProblem`,
+    but simulate the propagator matrix for the differential equation.
+    Solving this equation returns the super operator version of the
+    resulting quantum channel (in column vectorization convention).
+    """
+
+    def __init__(self,
+                 system_model: QuantumSystemModel,
+                 y0: Optional[np.ndarray] = None,
+                 t0: Optional[float] = None,
+                 interval: Optional[List[float]] = None,
+                 frame: Optional[Union[str, Operator, np.ndarray, BaseFrame]] = 'auto',
+                 cutoff_freq: Optional[float] = None):
+        """Constructs a BMDE_Problem representing the Lindblad equation,
+        to act on the super operator representation of quantum channel.
+
+        Additionally, 'frame' may be specified in this class either as a
+        standard anti-Hermitian operator :math:`F`, or as a Hermitian
+        operator :math:`H`, in which case it enters the frame :math:`F=-iH`.
+
+        Args:
+            hamiltonian: The Hamiltonian to simulate.
+            y0: Initial state, intended to be the super operator representation
+                of a quantum channel.
+            t0: Initial time.
+            interval: Time interval.
+            frame: Frame to solve in, specified in terms of the original
+                   equation.
+            cutoff_freq: Cutoff frequency to use when solving.
+        """
+
+        generator = system_model.vectorized_lindblad_generator
+
+        # handle frame
+        # if frame is in hamiltonian, set the generator frame to the vectorized
+        # version of it
+        if q_model.hamiltonian.frame.frame_operator is not None:
+            generator.frame = vec_commutator(q_model.hamiltonian.frame.frame_operator)
+
+            # if a frame was additionally specified as an argument, warn
+            if frame != 'auto':
+                warn("""A frame was specified in both the QuantumSystemModel
+                        Hamiltonian and in the LindbladProblem.
+                        Defaulting to use the LindbladProblem frame
+                        and return results in that frame.""")
+                # set frame to auto when constructing BMDE problem to silence
+                # further warnings
+                frame = 'auto'
+
+        else:
+            # if frame is auto, set it to the drift
+            if isinstance(frame, str) and frame == 'auto':
+                frame = q_model.hamiltonian.drift
+
+            # turn frame into the vectorized version
+            frame = vec_commutator(frame)
+
+        # assume frame is specified on initial system, so vectorize it
+        frame = vec_commutator(frame)
+
+        super().__init__(generator=generator,
+                         y0=y0,
+                         t0=t0,
+                         interval=interval,
+                         frame=frame,
+                         cutoff_freq=cutoff_freq)
 
 
 def anti_herm_part(A: Union[np.ndarray, Operator]):

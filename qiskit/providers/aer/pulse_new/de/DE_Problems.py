@@ -256,7 +256,7 @@ class LindbladianProblem(BMDE_Problem):
     """
 
     def __init__(self,
-                 system_model: QuantumSystemModel,
+                 q_model: QuantumSystemModel,
                  y0: Optional[np.ndarray] = None,
                  t0: Optional[float] = None,
                  interval: Optional[List[float]] = None,
@@ -280,7 +280,7 @@ class LindbladianProblem(BMDE_Problem):
             cutoff_freq: Cutoff frequency to use when solving.
         """
 
-        generator = system_model.vectorized_lindblad_generator
+        generator = q_model.vectorized_lindblad_generator
 
         # handle frame
         # if frame is in hamiltonian, set the generator frame to the vectorized
@@ -305,9 +305,6 @@ class LindbladianProblem(BMDE_Problem):
 
             # turn frame into the vectorized version
             frame = vec_commutator(frame)
-
-        # assume frame is specified on initial system, so vectorize it
-        frame = vec_commutator(frame)
 
         super().__init__(generator=generator,
                          y0=y0,

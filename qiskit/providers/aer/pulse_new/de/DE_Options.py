@@ -46,7 +46,7 @@ class DE_Options:
     """
 
     def __init__(self,
-                 method='scipy-RK45',
+                 method='jaxode',
                  atol=1e-8,
                  rtol=1e-6,
                  order=12,

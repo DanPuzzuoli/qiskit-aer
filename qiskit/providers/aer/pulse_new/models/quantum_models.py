@@ -12,6 +12,7 @@
 
 from typing import Callable, Union, List, Optional
 import numpy as np
+import jax.numpy as jnp
 from .signals import VectorSignal, Constant, Signal, BaseSignal
 from qiskit.quantum_info.operators import Operator
 from .frame import Frame
@@ -67,7 +68,7 @@ class HamiltonianModel(OperatorModel):
             if isinstance(operator, Operator):
                 operator = operator.data
 
-            if np.linalg.norm((operator.conj().transpose()
+            if jnp.linalg.norm((operator.conj().transpose()
                                 - operator).data) > 1e-10:
                 raise Exception("""HamiltonianModel only accepts Hermitian
                                     operators.""")
@@ -105,7 +106,7 @@ class HamiltonianModel(OperatorModel):
 
         op_to_add_in_fb = None
         if self.frame.frame_operator is not None:
-            op_to_add_in_fb = -1j * np.diag(self.frame.frame_diag)
+            op_to_add_in_fb = -1j * jnp.diag(self.frame.frame_diag)
 
 
         return self.frame._conjugate_and_add(time,
@@ -192,7 +193,7 @@ class QuantumSystemModel:
         full_operators = None
         if self.noise_operators is not None:
             vec_diss_ops = vec_dissipator(to_array(self.noise_operators))
-            full_operators = np.append(vec_ham_ops, vec_diss_ops, axis=0)
+            full_operators = jnp.append(vec_ham_ops, vec_diss_ops, axis=0)
         else:
             full_operators = vec_ham_ops
 
@@ -209,12 +210,12 @@ class QuantumSystemModel:
             elif isinstance(self.noise_signals, list):
                 noise_sigs = VectorSignal.from_signal_list(self.noise_signals)
 
-            full_envelope = lambda t: np.append(ham_sigs.envelope(t),
+            full_envelope = lambda t: jnp.append(ham_sigs.envelope(t),
                                                 noise_sigs.envelope(t))
-            full_carrier_freqs = np.append(ham_sigs.carrier_freqs,
+            full_carrier_freqs = jnp.append(ham_sigs.carrier_freqs,
                                           noise_sigs.carrier_freqs)
 
-            full_drift_array = np.append(ham_sigs.drift_array,
+            full_drift_array = jnp.append(ham_sigs.drift_array,
                                          noise_sigs.drift_array)
 
             full_signals = VectorSignal(envelope=full_envelope,
@@ -238,7 +239,7 @@ def to_array(op: Union[Operator, np.array, List[Operator], List[np.array]]):
         np.array: op as an array
     """
     if isinstance(op, list):
-        return np.array([to_array(sub_op) for sub_op in op])
+        return jnp.array([to_array(sub_op) for sub_op in op])
 
     if isinstance(op, Operator):
         return op.data

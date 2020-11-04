@@ -16,6 +16,7 @@ from abc import ABC, abstractmethod
 from typing import List, Callable, Union
 
 import numpy as np
+import jax.numpy as np
 from matplotlib import pyplot as plt
 
 from qiskit import QiskitError
@@ -52,24 +53,24 @@ class BaseSignal(ABC):
         return signal_add(self, other)
 
     def plot(self, t0: float, tf: float, n: int):
-        x_vals = np.linspace(t0, tf, n)
+        x_vals = jnp.linspace(t0, tf, n)
 
         sig_vals = []
         for x in x_vals:
             sig_vals.append(self.value(x))
 
-        plt.plot(x_vals, np.real(sig_vals))
-        plt.plot(x_vals, np.imag(sig_vals))
+        plt.plot(x_vals, jnp.real(sig_vals))
+        plt.plot(x_vals, jnp.imag(sig_vals))
 
     def plot_envelope(self, t0: float, tf: float, n: int):
-        x_vals = np.linspace(t0, tf, n)
+        x_vals = jnp.linspace(t0, tf, n)
 
         sig_vals = []
         for x in x_vals:
             sig_vals.append(self.envelope_value(x))
 
-        plt.plot(x_vals, np.real(sig_vals))
-        plt.plot(x_vals, np.imag(sig_vals))
+        plt.plot(x_vals, jnp.real(sig_vals))
+        plt.plot(x_vals, jnp.imag(sig_vals))
 
 
 class Signal(BaseSignal):
@@ -103,7 +104,7 @@ class Signal(BaseSignal):
 
     def value(self, t: float = 0.) -> complex:
         """Return the value of the signal at time t."""
-        return self.envelope_value(t) * np.exp(1j * 2 * np.pi * self.carrier_freq * t)
+        return self.envelope_value(t) * jnp.exp(1j * 2 * jnp.pi * self.carrier_freq * t)
 
     def conjugate(self):
         """Return a new signal that is the complex conjugate of this one"""
@@ -179,7 +180,7 @@ class PiecewiseConstant(BaseSignal):
         Returns:
             samples: the samples of the piecewise constant signal.
         """
-        return np.array([_ for _ in self._samples])
+        return jnp.array([_ for _ in self._samples])
 
     @property
     def start_time(self) -> float:
@@ -190,22 +191,25 @@ class PiecewiseConstant(BaseSignal):
         return self._start_time
 
     def envelope_value(self, t: float = 0.) -> complex:
-
+        """
         idx = int((t - self._start_time) // self._dt)
 
         # if the index is beyond the final time, return 0
         if idx >= self.duration or idx < 0:
             return 0.0j
+        """
+        # getting jax to work
+        idx = jnp.array(((t - self._start_time) // self._dt)).astype(int)
 
         return self._samples[idx]
 
     def value(self, t: float = 0.) -> complex:
         """Return the value of the signal at time t."""
-        return self.envelope_value(t) * np.exp(1j * 2 * np.pi * self.carrier_freq * t)
+        return self.envelope_value(t) * jnp.exp(1j * 2 * jnp.pi * self.carrier_freq * t)
 
     def conjugate(self):
         return PiecewiseConstant(dt=self._dt,
-                                 samples=np.conjugate(self._samples),
+                                 samples=jnp.conjugate(self._samples),
                                  start_time=self._start_time,
                                  duration=self.duration,
                                  carrier_freq=self.carrier_freq)
@@ -433,12 +437,12 @@ class VectorSignal:
         self.envelope = envelope
         self.carrier_freqs = carrier_freqs
 
-        self._im_angular_freqs = 1j * 2 * np.pi * carrier_freqs
+        self._im_angular_freqs = 1j * 2 * jnp.pi * carrier_freqs
 
         # if not supplied nothing is assumed, constant array is taken as all
         # zeros
         if drift_array is None:
-            self.drift_array = np.zeros(len(self.carrier_freqs))
+            self.drift_array = jnp.zeros(len(self.carrier_freqs))
         else:
             self.drift_array = drift_array
 
@@ -456,11 +460,11 @@ class VectorSignal:
 
         # define the envelope as iteratively evaluating the envelopes
         def env_func(t):
-            return np.array([sig.envelope_value(t) for sig in signal_list])
+            return jnp.array([sig.envelope_value(t) for sig in signal_list])
 
         # construct carrier frequency list
         # if signal doesn't have a carrier, set to 0.
-        carrier_freqs = np.array([getattr(sig, 'carrier_freq', 0.)
+        carrier_freqs = jnp.array([getattr(sig, 'carrier_freq', 0.)
                                     for sig in signal_list])
 
         # construct drift_array
@@ -473,7 +477,7 @@ class VectorSignal:
 
         return cls(envelope=env_func,
                    carrier_freqs=carrier_freqs,
-                   drift_array=np.array(drift_array))
+                   drift_array=jnp.array(drift_array))
 
     def envelope_value(self, t: float) -> np.array:
         """Evaluate the envelope.
@@ -496,7 +500,7 @@ class VectorSignal:
             np.array: the value of the signal (including carrier frequencies)
                       at time t
         """
-        carrier_val = np.exp(t * self._im_angular_freqs)
+        carrier_val = jnp.exp(t * self._im_angular_freqs)
         return self.envelope_value(t) * carrier_val
 
     def conjugate(self):
@@ -505,6 +509,6 @@ class VectorSignal:
         Returns:
             VectorSignal: the complex conjugate of self
         """
-        return VectorSignal(lambda t: np.conjugate(self.envelope_value(t)),
+        return VectorSignal(lambda t: jnp.conjugate(self.envelope_value(t)),
                             -self.carrier_freqs,
-                            np.conjugate(self.drift_array))
+                            jnp.conjugate(self.drift_array))

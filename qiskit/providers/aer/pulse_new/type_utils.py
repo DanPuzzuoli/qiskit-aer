@@ -18,6 +18,7 @@ reshaping arrays, and handling qiskit types that wrap arrays.
 """
 
 import numpy as np
+import jax.numpy as jnp
 
 
 class StateTypeConverter:
@@ -118,7 +119,7 @@ class StateTypeConverter:
             raise Exception("inner_type_spec needs a 'type' key.")
 
         if inner_type == 'array':
-            outer_y_as_array = np.array(outer_y)
+            outer_y_as_array = jnp.array(outer_y)
 
             # if a specific shape is given attempt to instantiate from a reshaped outer_y
             shape = inner_type_spec.get('shape')
@@ -208,17 +209,17 @@ class StateTypeConverter:
                 if self.order == 'C':
                     # create identity of size the second dimension of the
                     # outer type
-                    ident = np.eye(self.outer_type_spec['shape'][1])
+                    ident = jnp.eye(self.outer_type_spec['shape'][1])
                     def new_generator(t):
-                        return np.kron(generator(t), ident)
+                        return jnp.kron(generator(t), ident)
 
                     new_rhs_funcs['generator'] = new_generator
                 elif self.order == 'F':
                     # create identity of size the second dimension of the
                     # outer type
-                    ident = np.eye(self.outer_type_spec['shape'][1])
+                    ident = jnp.eye(self.outer_type_spec['shape'][1])
                     def new_generator(t):
-                        return np.kron(ident, generator(t))
+                        return jnp.kron(ident, generator(t))
 
                     new_rhs_funcs['generator'] = new_generator
 
@@ -240,7 +241,7 @@ def convert_state(y, type_spec, order='F'):
 
     if type_spec['type'] == 'array':
         # default array data type to complex
-        new_y = np.array(y, dtype=type_spec.get('dtype', 'complex'))
+        new_y = jnp.array(y, dtype=type_spec.get('dtype', 'complex'))
 
         shape = type_spec.get('shape')
         if shape is not None:
@@ -252,13 +253,13 @@ def convert_state(y, type_spec, order='F'):
 def type_spec_from_instance(y):
     """Determine type spec from an instance."""
     type_spec = {}
-    if isinstance(y, np.ndarray):
+    if isinstance(y, jnp.ndarray):
         type_spec['type'] = 'array'
         type_spec['shape'] = y.shape
 
     return type_spec
 
-def vec_commutator(A: np.array):
+def vec_commutator(A: jnp.array):
     """Linear algebraic vectorization of the linear map X -> [A, X]
     in column-stacking convention. In column-stacking convention we have
 
@@ -276,13 +277,13 @@ def vec_commutator(A: np.array):
         A: Either a 2d array representing the matrix A described above,
            or a 3d array representing a list of matrices.
     """
-    iden = np.eye(A.shape[-1])
+    iden = jnp.eye(A.shape[-1])
     axes = list(range(A.ndim))
     axes[-1] = axes[-2]
     axes[-2] += 1
-    return np.kron(iden, A) - np.kron(A.transpose(axes), iden)
+    return jnp.kron(iden, A) - jnp.kron(A.transpose(axes), iden)
 
-def vec_dissipator(L: np.array):
+def vec_dissipator(L: jnp.array):
     """ Linear algebraic vectorization of the linear map
     X -> L X L^\dagger - 0.5 * (L^\dagger L X + X L^\dagger L)
     in column stacking convention.
@@ -295,7 +296,7 @@ def vec_dissipator(L: np.array):
 
     Note: this function is also "vectorized" in the programming sense.
     """
-    iden = np.eye(L.shape[-1])
+    iden = jnp.eye(L.shape[-1])
     axes = list(range(L.ndim))
 
     axes[-1] = axes[-2]
@@ -304,5 +305,5 @@ def vec_dissipator(L: np.array):
     LdagL = Lconj.transpose(axes) @ L
     LdagLtrans = LdagL.transpose(axes)
 
-    return (np.kron(Lconj, iden) @ np.kron(iden, L)
-            - 0.5 * (np.kron(iden, LdagL) + np.kron(LdagLtrans, iden)))
+    return (jnp.kron(Lconj, iden) @ jnp.kron(iden, L)
+            - 0.5 * (jnp.kron(iden, LdagL) + jnp.kron(LdagLtrans, iden)))

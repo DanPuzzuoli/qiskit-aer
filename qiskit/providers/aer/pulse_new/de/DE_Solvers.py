@@ -13,6 +13,7 @@
 # that they have been altered from the originals.
 
 import numpy as np
+import jax.numpy as jnp
 from typing import Callable, Union, List, Optional
 
 from .DE_Methods import ODE_Method, method_from_string

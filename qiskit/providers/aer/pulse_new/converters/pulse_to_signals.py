@@ -14,7 +14,7 @@
 Pulse schedule to Signals converter.
 """
 
-import numpy as np
+import jax.numpy as jnp
 from typing import List
 
 from qiskit.pulse import Schedule, Play, ShiftPhase, SetPhase, ShiftFrequency, SetFrequency
@@ -69,7 +69,7 @@ class InstructionToSignals:
                 start_idx = len(signals[ch].samples)
                 for idx, sample in enumerate(inst.pulse.get_waveform().samples):
                     t = self._dt * (idx + start_idx)
-                    samples.append(sample * np.exp(2.0j * np.pi * freq * t + 1.0j * phi))
+                    samples.append(sample * jnp.exp(2.0j * jnp.pi * freq * t + 1.0j * phi))
 
                 signals[ch].add_samples(start_sample, samples)
 

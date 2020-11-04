@@ -23,6 +23,8 @@
 from abc import ABC, abstractmethod
 import warnings
 import numpy as np
+import jax.numpy as jnp
+from jax.experimental.ode import odeint
 from scipy.integrate import ode, solve_ivp
 from scipy.integrate._ode import zvode
 from scipy.linalg import expm
@@ -489,6 +491,46 @@ class Expm(BMDE_Method):
         """
         self._max_dt = options.max_dt
 
+
+class JaxODE(ODE_Method):
+    """Method wrapper for from jax.experimental.ode.odeint
+
+    - only has one integration routine
+
+    Additional notes:
+        - solve_ivp requires states to be 1d
+        - Enabling other methods requires adding dtype handling to type_utils for solvers that
+          do not handle complex types
+    """
+
+    #method_spec = {'inner_state_spec': {'type': 'array', 'ndim': 1}}
+    # not sure if it allows arbitrary dimension
+    method_spec = {'inner_state_spec': {'type': 'array'}}
+
+    def integrate(self, tf, **kwargs):
+        """Integrate up to a time tf.
+        """
+        t0 = self.t
+        y0 = self._y
+        rhs = self.rhs.get('rhs')
+
+        results = odeint(lambda t, y: rhs(y, t),
+                         y0=y0,
+                         t=jnp.array([t0, tf]),
+                         atol=self.options.atol,
+                         rtol=self.options.rtol)
+
+        # update the internal state
+        # jax returns a a list of results
+        self._y = results[-1]
+        self._t = tf
+
+
+    def set_options(self, options):
+        # establish method
+        # don't think we need to do anything here
+        self.options = options
+
 def method_from_string(method_str):
     """Returns an ODE_Method specified by a string.
 
@@ -508,6 +550,7 @@ def method_from_string(method_str):
     method_dict = {'RK4': RK4,
                    'scipy': ScipyODE,
                    'zvode': QiskitZVODE,
-                   'Expm': Expm}
+                   'Expm': Expm,
+                   'jaxode': JaxODE}
 
     return method_dict.get(method_str)

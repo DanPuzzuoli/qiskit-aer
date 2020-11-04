@@ -13,6 +13,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Union, List, Optional, Tuple
 import numpy as np
+import jax.numpy as jnp
 
 from qiskit.quantum_info.operators import Operator
 
@@ -288,7 +289,7 @@ class BaseFrame(ABC):
             # conjugate and subtract the frame diagonal
             return self._conjugate_and_add(t,
                                            operator,
-                                           op_to_add_in_fb=-np.diag(self.frame_diag),
+                                           op_to_add_in_fb=-jnp.diag(self.frame_diag),
                                            operator_in_frame_basis=operator_in_frame_basis,
                                            return_in_frame_basis=return_in_frame_basis)
 
@@ -316,7 +317,7 @@ class BaseFrame(ABC):
             # conjugate and add the frame diagonal
             return self._conjugate_and_add(-t,
                                            operator,
-                                           op_to_add_in_fb=np.diag(self.frame_diag),
+                                           op_to_add_in_fb=jnp.diag(self.frame_diag),
                                            operator_in_frame_basis=operator_in_frame_basis,
                                            return_in_frame_basis=return_in_frame_basis)
 
@@ -436,28 +437,28 @@ class Frame(BaseFrame):
             self._frame_basis = None
             self._frame_basis_adjoint = None
         # if frame_operator is a 1d array, assume already diagonalized
-        elif isinstance(frame_operator, np.ndarray) and frame_operator.ndim == 1:
+        elif isinstance(frame_operator, jnp.ndarray) and frame_operator.ndim == 1:
 
             # first check if it is Hermitian, if so convert to anti-Hermitian
-            if np.linalg.norm(frame_operator - frame_operator.conj()) < 1e-10:
+            if jnp.linalg.norm(frame_operator - frame_operator.conj()) < 1e-10:
                 frame_operator = -1j * frame_operator
 
             # verify that it is anti-hermitian (i.e. purely imaginary)
-            if np.linalg.norm(frame_operator + frame_operator.conj()) > 1e-10:
+            if jnp.linalg.norm(frame_operator + frame_operator.conj()) > 1e-10:
                 raise Exception("""frame_operator must be either a Hermitian or
                                    anti-Hermitian matrix.""")
 
             self._frame_diag = frame_operator
-            self._frame_basis = np.eye(len(frame_operator))
+            self._frame_basis = jnp.eye(len(frame_operator))
             self._frame_basis_adjoint = self.frame_basis
             self._dim = len(self._frame_diag)
         # if not, diagonalize it
         else:
             # Ensure that it is an Operator object
-            frame_operator = Operator(frame_operator)
+            frame_operator = Operator(np.array(frame_operator))
 
             # first check if it is Hermitian, if so convert to anti-Hermitian
-            if np.linalg.norm((frame_operator - frame_operator.adjoint()).data) < 1e-10 :
+            if jnp.linalg.norm((frame_operator - frame_operator.adjoint()).data) < 1e-10 :
                 frame_operator = -1j * frame_operator
 
             # verify anti-hermitian
@@ -467,7 +468,7 @@ class Frame(BaseFrame):
                                    anti-Hermitian matrix.""")
 
             # diagonalize with eigh, utilizing assumption of anti-hermiticity
-            frame_diag, frame_basis = np.linalg.eigh(1j * frame_operator.data)
+            frame_diag, frame_basis = jnp.linalg.eigh(1j * frame_operator.data)
 
             self._frame_diag = -1j * frame_diag
             self._frame_basis = frame_basis
@@ -561,7 +562,7 @@ class Frame(BaseFrame):
             operators: list of operators
         """
 
-        return np.array([self.operator_into_frame_basis(o) for o in operators])
+        return jnp.array([self.operator_into_frame_basis(o) for o in operators])
 
     def operators_out_of_frame_basis(self,
                                    operators: Union[List[Operator], np.array]) -> np.array:
@@ -572,7 +573,7 @@ class Frame(BaseFrame):
             operators: list of operators
         """
 
-        return np.array([self.operator_out_of_frame_basis(o) for o in operators])
+        return jnp.array([self.operator_out_of_frame_basis(o) for o in operators])
 
     def state_into_frame(self,
                          t: float,
@@ -599,7 +600,7 @@ class Frame(BaseFrame):
             out = self.state_into_frame_basis(out)
 
         # go into the frame
-        out = np.diag(np.exp(- t * self.frame_diag)) @ out
+        out = jnp.diag(jnp.exp(- t * self.frame_diag)) @ out
 
         # if output is requested to not be in the frame basis, convert it
         if not return_in_frame_basis:
@@ -634,8 +635,8 @@ class Frame(BaseFrame):
         # get frame transformation matrix in diagonal basis
         # assumption that F is anti-Hermitian implies conjugation of
         # diagonal gives inversion
-        exp_freq = np.exp(t * self.frame_diag)
-        frame_mat = np.outer(exp_freq.conj(), exp_freq)
+        exp_freq = jnp.exp(t * self.frame_diag)
+        frame_mat = jnp.outer(exp_freq.conj(), exp_freq)
         out = frame_mat * out
 
         if op_to_add_in_fb is not None:
@@ -673,22 +674,22 @@ class Frame(BaseFrame):
 
         # if no carrier frequencies set, set to 0
         if carrier_freqs is None:
-            carrier_freqs = np.zeros(len(operators))
+            carrier_freqs = jnp.zeros(len(operators))
 
         # create difference matrix for diagonal elements
         dim = len(ops_in_frame_basis[0])
         D_diff = None
         if self._frame_operator is None:
-            D_diff = np.zeros((dim, dim))
+            D_diff = jnp.zeros((dim, dim))
         else:
-            D_diff = np.ones((dim, dim)) * self.frame_diag
+            D_diff = jnp.ones((dim, dim)) * self.frame_diag
             D_diff = D_diff - D_diff.transpose()
 
         # set up matrix encoding frequencies
-        im_angular_freqs = 1j * 2 * np.pi * carrier_freqs
-        freq_array = np.array([w + D_diff for w in im_angular_freqs])
+        im_angular_freqs = 1j * 2 * jnp.pi * carrier_freqs
+        freq_array = jnp.array([w + D_diff for w in im_angular_freqs])
 
-        cutoff_array = ((np.abs(freq_array.imag) / (2 * np.pi))
+        cutoff_array = ((jnp.abs(freq_array.imag) / (2 * jnp.pi))
                                 < cutoff_freq).astype(int)
 
         return (cutoff_array * ops_in_frame_basis,

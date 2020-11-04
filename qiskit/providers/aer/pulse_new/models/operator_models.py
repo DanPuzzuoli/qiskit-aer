@@ -13,6 +13,7 @@
 from abc import ABC, abstractmethod
 from typing import Callable, Union, List, Optional
 import numpy as np
+import jax.numpy as jnp
 from copy import deepcopy
 
 from .signals import VectorSignal, BaseSignal
@@ -91,7 +92,7 @@ class BaseOperatorModel(ABC):
         Returns:
             np.array: the product
         """
-        return np.dot(self.evaluate(time, in_frame_basis), y)
+        return jnp.dot(self.evaluate(time, in_frame_basis), y)
 
     def rmult(self,
               time: float,
@@ -109,7 +110,7 @@ class BaseOperatorModel(ABC):
         Returns:
             np.array: the product
         """
-        return np.dot(y, self.evaluate(time, in_frame_basis))
+        return jnp.dot(y, self.evaluate(time, in_frame_basis))
 
     @property
     @abstractmethod
@@ -333,7 +334,7 @@ class OperatorModel(BaseOperatorModel):
         """
         carrier_freqs = None
         if self._signals.carrier_freqs is None:
-            carrier_freqs = np.zeros(len(self._operators))
+            carrier_freqs = jnp.zeros(len(self._operators))
         else:
             carrier_freqs = self._signals.carrier_freqs
 
@@ -380,7 +381,7 @@ class OperatorModel(BaseOperatorModel):
         Args:
             sig_vals: Signals evaluated at some time.
         """
-        return 0.5 * (np.tensordot(sig_vals, self._ops_in_fb_w_cutoff, axes=1)
-                      + np.tensordot(sig_vals.conj(),
+        return 0.5 * (jnp.tensordot(sig_vals, self._ops_in_fb_w_cutoff, axes=1)
+                      + jnp.tensordot(sig_vals.conj(),
                                      self._ops_in_fb_w_conj_cutoff,
                                      axes=1))

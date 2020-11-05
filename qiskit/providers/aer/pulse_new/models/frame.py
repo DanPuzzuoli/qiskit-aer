@@ -14,6 +14,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Union, List, Optional, Tuple
 import numpy as np
 import jax.numpy as jnp
+from jax.lax import cond
 
 from qiskit.quantum_info.operators import Operator
 
@@ -454,21 +455,31 @@ class Frame(BaseFrame):
             self._dim = len(self._frame_diag)
         # if not, diagonalize it
         else:
-            # Ensure that it is an Operator object
-            frame_operator = Operator(np.array(frame_operator))
-
             # first check if it is Hermitian, if so convert to anti-Hermitian
-            if jnp.linalg.norm((frame_operator - frame_operator.adjoint()).data) < 1e-10 :
-                frame_operator = -1j * frame_operator
+            #if jnp.linalg.norm(frame_operator - frame_operator.conj().transpose()) < 1e-10:
+            #    frame_operator = -1j * frame_operator
+
+            frame_operator = cond(jnp.linalg.norm(frame_operator - frame_operator.conj().transpose()) < 1e-10,
+                                  lambda A: -1j*A,
+                                  lambda A: A,
+                                  frame_operator)
 
             # verify anti-hermitian
-            herm_part = frame_operator + frame_operator.adjoint()
-            if herm_part != Operator(np.zeros(frame_operator.dim)):
-                raise Exception("""frame_operator must be either a Hermitian or
-                                   anti-Hermitian matrix.""")
+            herm_part = frame_operator + frame_operator.conj().transpose()
+
+            def false_func(A):
+                # raising errors is a problem
+                return jnp.nan*frame_operator
+                #raise Exception("""frame_operator must be either a Hermitian or
+                #                   anti-Hermitian matrix.""")
+
+            frame_operator = cond(jnp.linalg.norm(herm_part) < 1e-10,
+                                  lambda A: A,
+                                  false_func,
+                                  frame_operator)
 
             # diagonalize with eigh, utilizing assumption of anti-hermiticity
-            frame_diag, frame_basis = jnp.linalg.eigh(1j * frame_operator.data)
+            frame_diag, frame_basis = jnp.linalg.eigh(1j * frame_operator)
 
             self._frame_diag = -1j * frame_diag
             self._frame_basis = frame_basis

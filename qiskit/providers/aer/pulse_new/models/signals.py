@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from typing import List, Callable, Union
 
 import numpy as np
-import jax.numpy as np
+import jax.numpy as jnp
 from matplotlib import pyplot as plt
 
 from qiskit import QiskitError

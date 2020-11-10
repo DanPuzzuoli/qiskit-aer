@@ -171,7 +171,7 @@ class SchrodingerProblem(BMDE_Problem):
                          frame=frame,
                          cutoff_freq=cutoff_freq)
 
-class LindbladProblem(BMDE_Problem):
+class DensityMatrixProblem(BMDE_Problem):
     """Simulate a density matrix according to the Lindblad equation:
 
     .. math::

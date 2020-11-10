@@ -172,7 +172,7 @@ class SchrodingerProblem(BMDE_Problem):
                          cutoff_freq=cutoff_freq)
 
 class DensityMatrixProblem(BMDE_Problem):
-    """Simulate a density matrix according to the Lindblad equation:
+    """Simulate density matrix evolution according to the Lindblad equation:
 
     .. math::
         \dot{\rho}(t) = -i[H(t), \rho(t)] + \sum_j \gamma_j(t) L_j\rho(t)L_j^\dagger - \frac{1}{2}\{L_j^\daggerL_j, \rho(t)\}

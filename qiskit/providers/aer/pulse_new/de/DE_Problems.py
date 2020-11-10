@@ -247,7 +247,7 @@ class DensityMatrixProblem(BMDE_Problem):
                          state_type_converter=converter)
 
 class SuperOpProblem(BMDE_Problem):
-    """Define a Lindbladian simulation problem.
+    """Simulate super operator evolution according to the Lindblad equation.
 
     I.e. Construct the Lindblad equation as in :class:`LindbladProblem`,
     but simulate the propagator matrix for the differential equation.

@@ -246,7 +246,7 @@ class DensityMatrixProblem(BMDE_Problem):
                          cutoff_freq=cutoff_freq,
                          state_type_converter=converter)
 
-class LindbladianProblem(BMDE_Problem):
+class SuperOpProblem(BMDE_Problem):
     """Define a Lindbladian simulation problem.
 
     I.e. Construct the Lindblad equation as in :class:`LindbladProblem`,

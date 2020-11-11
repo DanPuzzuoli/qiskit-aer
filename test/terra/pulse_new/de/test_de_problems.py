@@ -21,8 +21,8 @@ from qiskit.providers.aer.pulse_new.models.operator_models import OperatorModel
 from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, QuantumSystemModel
 from qiskit.providers.aer.pulse_new.de.DE_Problems import (BMDE_Problem,
                                                            SchrodingerProblem,
-                                                           LindbladProblem,
-                                                           LindbladianProblem)
+                                                           DensityMatrixProblem,
+                                                           SuperOpProblem)
 from qiskit.providers.aer.pulse_new.type_utils import (vec_commutator,
                                                        vec_dissipator)
 
@@ -161,8 +161,8 @@ class TestSchrodingerProblem(unittest.TestCase):
     def assertAlmostEqual(self, A, B, tol=10**-15):
         self.assertTrue(np.abs(A - B).max() < tol)
 
-class TestLindbladProblem(unittest.TestCase):
-    """Test LindbladProblem.
+class TestDensityMatrixProblem(unittest.TestCase):
+    """Test DensityMatrixProblem.
     """
 
     def setUp(self):
@@ -196,9 +196,9 @@ class TestLindbladProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = LindbladProblem(self.basic_q_model,
-                                 self.y0,
-                                 t0=0.)
+        l_prob = DensityMatrixProblem(self.basic_q_model,
+                                      self.y0,
+                                      t0=0.)
 
         # validate generator matrices
         self.assertAlmostEqual(l_prob._generator._operators[0].data,
@@ -215,9 +215,9 @@ class TestLindbladProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = LindbladProblem(self.basic_q_model,
-                                 self.y0,
-                                 t0=0.)
+        l_prob = DensityMatrixProblem(self.basic_q_model,
+                                      self.y0,
+                                      t0=0.)
 
         # validate generator signals
         t = 0.12314
@@ -234,9 +234,9 @@ class TestLindbladProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = LindbladProblem(self.basic_q_model,
-                                 self.y0,
-                                 t0=0.)
+        l_prob = DensityMatrixProblem(self.basic_q_model,
+                                      self.y0,
+                                      t0=0.)
 
         frame_op = l_prob._generator.frame.frame_operator
         expected = vec_commutator(2 * np.pi * self.w * self.Z.data / 2)
@@ -248,9 +248,9 @@ class TestLindbladProblem(unittest.TestCase):
         problem.
         """
 
-        l_prob = LindbladProblem(self.basic_q_model,
-                                 self.y0,
-                                 t0=0.)
+        l_prob = DensityMatrixProblem(self.basic_q_model,
+                                      self.y0,
+                                      t0=0.)
 
         # ensure that stored state is correct
         self.assertAlmostEqual(l_prob.y0, self.y0)
@@ -267,10 +267,10 @@ class TestLindbladProblem(unittest.TestCase):
         self.assertTrue(np.abs(A - B).max() < tol)
 
 
-class TestLindbladianProblem(unittest.TestCase):
-    """Test LindbladianProblem.
+class TestSuperOpProblem(unittest.TestCase):
+    """Test SuperOpProblem.
 
-    For now same tests as for LindbladProblem.
+    For now same tests as for DensityMatrixProblem.
     """
 
     def setUp(self):
@@ -304,9 +304,9 @@ class TestLindbladianProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = LindbladianProblem(self.basic_q_model,
-                                 self.y0,
-                                 t0=0.)
+        l_prob = SuperOpProblem(self.basic_q_model,
+                                self.y0,
+                                t0=0.)
 
         # validate generator matrices
         self.assertAlmostEqual(l_prob._generator._operators[0].data,
@@ -323,9 +323,9 @@ class TestLindbladianProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = LindbladianProblem(self.basic_q_model,
-                                 self.y0,
-                                 t0=0.)
+        l_prob = SuperOpProblem(self.basic_q_model,
+                                self.y0,
+                                t0=0.)
 
         # validate generator signals
         t = 0.12314
@@ -342,13 +342,13 @@ class TestLindbladianProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = LindbladianProblem(self.basic_q_model,
-                                 self.y0,
-                                 t0=0.)
+        l_prob = SuperOpProblem(self.basic_q_model,
+                                self.y0,
+                                t0=0.)
 
         frame_op = l_prob._generator.frame.frame_operator
         expected = vec_commutator(2 * np.pi * self.w * self.Z.data / 2)
-        
+
         self.assertAlmostEqual(frame_op, expected)
 
     def assertAlmostEqual(self, A, B, tol=10**-15):

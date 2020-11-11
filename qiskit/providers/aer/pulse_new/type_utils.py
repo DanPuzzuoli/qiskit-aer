@@ -17,7 +17,11 @@
 reshaping arrays, and handling qiskit types that wrap arrays.
 """
 
+from typing import Union, List
+
 import numpy as np
+
+from qiskit.quantum_info.operators import Operator
 
 
 class StateTypeConverter:
@@ -306,3 +310,22 @@ def vec_dissipator(L: np.array):
 
     return (np.kron(Lconj, iden) @ np.kron(iden, L)
             - 0.5 * (np.kron(iden, LdagL) + np.kron(LdagLtrans, iden)))
+
+
+def to_array(op: Union[Operator, np.array, List[Operator], List[np.array]]):
+    """Convert an operator, either specified as an `Operator` or an array
+    to an array.
+
+    Args:
+        op: Either an Operator to be converted to an array, a list of Operators
+            to be converted to a 3d array, or an array (which simply gets
+            returned)
+    Returns:
+        np.array
+    """
+    if isinstance(op, list):
+        return np.array([to_array(sub_op) for sub_op in op])
+
+    if isinstance(op, Operator):
+        return op.data
+    return op

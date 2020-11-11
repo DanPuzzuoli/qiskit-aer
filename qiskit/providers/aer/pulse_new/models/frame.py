@@ -15,6 +15,8 @@ from typing import Callable, Union, List, Optional, Tuple
 import numpy as np
 
 from qiskit.quantum_info.operators import Operator
+from qiskit.quantum_info.operators.predicates import is_hermitian_matrix
+from ..type_utils import to_array
 
 class BaseFrame(ABC):
     """Abstract interface for functionality for entering a constant rotating
@@ -421,11 +423,19 @@ class BaseFrame(ABC):
 class Frame(BaseFrame):
     """Concrete implementation of BaseFrame using numpy arrays."""
 
-    def __init__(self, frame_operator: Union[Operator, np.array]):
+    def __init__(self,
+                 frame_operator: Union[Operator, np.array],
+                 atol: float = 1e-10,
+                 rtol: float = 1e-10):
         """Initialize with a frame operator.
 
         Args:
-            frame_operator: the frame operator, assumed to be anti-Hermitian.
+            frame_operator: the frame operator, must be either
+                            Hermitian or anti-Hermitian.
+            atol: absolute tolerance when verifying that the frame_operator is
+                  Hermitian or anti-Hermitian.
+            rtol: relative tolerance when verifying that the frame_operator is
+                  Hermitian or anti-Hermitian.
         """
 
         self._frame_operator = frame_operator
@@ -438,12 +448,13 @@ class Frame(BaseFrame):
         # if frame_operator is a 1d array, assume already diagonalized
         elif isinstance(frame_operator, np.ndarray) and frame_operator.ndim == 1:
 
-            # first check if it is Hermitian, if so convert to anti-Hermitian
-            if np.linalg.norm(frame_operator - frame_operator.conj()) < 1e-10:
+            # verify Hermitian or anti-Hermitian
+            # if Hermitian convert to anti-Hermitian
+            if np.allclose(frame_operator, frame_operator.conj(),
+                           atol=atol, rtol=rtol):
                 frame_operator = -1j * frame_operator
-
-            # verify that it is anti-hermitian (i.e. purely imaginary)
-            if np.linalg.norm(frame_operator + frame_operator.conj()) > 1e-10:
+            elif not np.allclose(frame_operator, -frame_operator.conj(),
+                                 atol=atol, rtol=rtol):
                 raise Exception("""frame_operator must be either a Hermitian or
                                    anti-Hermitian matrix.""")
 
@@ -453,21 +464,19 @@ class Frame(BaseFrame):
             self._dim = len(self._frame_diag)
         # if not, diagonalize it
         else:
-            # Ensure that it is an Operator object
-            frame_operator = Operator(frame_operator)
+            # Ensure that its an array
+            frame_operator = to_array(frame_operator)
 
-            # first check if it is Hermitian, if so convert to anti-Hermitian
-            if np.linalg.norm((frame_operator - frame_operator.adjoint()).data) < 1e-10 :
+            # verify Hermitian or anti-Hermitian
+            # if Hermitian convert to anti-Hermitian
+            if is_hermitian_matrix(frame_operator, rtol=rtol, atol=atol):
                 frame_operator = -1j * frame_operator
-
-            # verify anti-hermitian
-            herm_part = frame_operator + frame_operator.adjoint()
-            if herm_part != Operator(np.zeros(frame_operator.dim)):
+            elif not is_hermitian_matrix(1j * frame_operator, rtol=rtol, atol=atol):
                 raise Exception("""frame_operator must be either a Hermitian or
                                    anti-Hermitian matrix.""")
 
             # diagonalize with eigh, utilizing assumption of anti-hermiticity
-            frame_diag, frame_basis = np.linalg.eigh(1j * frame_operator.data)
+            frame_diag, frame_basis = np.linalg.eigh(1j * frame_operator)
 
             self._frame_diag = -1j * frame_diag
             self._frame_basis = frame_basis
@@ -693,17 +702,3 @@ class Frame(BaseFrame):
 
         return (cutoff_array * ops_in_frame_basis,
                 cutoff_array.transpose([0, 2, 1]) * ops_in_frame_basis)
-
-
-def to_array(op: Union[Operator, np.array]):
-    """Convert an operator, either specified as an `Operator` or an array
-    to an array.
-
-    Args:
-        op: the operator to represent as an array.
-    Returns:
-        np.array: op as an array
-    """
-    if isinstance(op, Operator):
-        return op.data
-    return op

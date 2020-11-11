@@ -130,9 +130,10 @@ class BMDE_Problem:
             self._generator.cutoff_freq = cutoff_freq
 
 class SchrodingerProblem(BMDE_Problem):
-    """A Schrodinger equation problem, where the generator is of the form
-    :math:`G(t) = -i H(t)`, with :math:`H(t)` a Hamiltonian given by an
-    instance of :class:`HamiltonianModel`.
+    """A differential equation problem for evolution of a state according
+    to the Schrodinger equation: :math:`\dot{A}(t) = -i H(t)A(t)`, where
+    :math:`H(t)` is a Hamiltonian given by an instance of
+    :class:`HamiltonianModel`.
     """
 
     def __init__(self,
@@ -170,6 +171,87 @@ class SchrodingerProblem(BMDE_Problem):
                          interval=interval,
                          frame=frame,
                          cutoff_freq=cutoff_freq)
+
+
+class StatevectorProblem(SchrodingerProblem):
+    """A differential equation problem for evolution of a statevector according
+    to the Schrodinger equation: :math:`\dot{y}(t) = -i H(t)y(t)`, where
+    :math:`H(t)` is a Hamiltonian given by an instance of
+    :class:`HamiltonianModel`.
+    """
+
+    def __init__(self,
+                 hamiltonian: HamiltonianModel,
+                 y0: Optional[np.ndarray] = None,
+                 t0: Optional[float] = None,
+                 interval: Optional[List[float]] = None,
+                 frame: Optional[Union[str, Operator, np.ndarray, BaseFrame]] = 'auto',
+                 cutoff_freq: Optional[float] = None):
+        """Constructs a BMDE_Problem representing the Schrodinger equation.
+
+        Additionally, 'frame' may be specified in this class either as a
+        standard anti-Hermitian operator :math:`F`, or as a Hermitian
+        operator :math:`H`, in which case it enters the frame :math:`F=-iH`.
+
+        Args:
+            hamiltonian: The Hamiltonian to simulate.
+            y0: Initial state, intended to be a statevector.
+            t0: Initial time.
+            interval: Time interval.
+            frame: Frame to solve in.
+            cutoff_freq: Cutoff frequency to use when solving.
+        """
+
+        # can add logic here for defaults
+
+        super().__init__(hamiltonian=hamiltonian,
+                         y0=y0,
+                         t0=t0,
+                         interval=interval,
+                         frame=frame,
+                         cutoff_freq=cutoff_freq)
+
+class UnitaryProblem(SchrodingerProblem):
+    """A differential equation problem for evolution of a unitary according
+    to the Schrodinger equation: :math:`\dot{U}(t) = -i H(t)U(t)`, where
+    :math:`H(t)` is a Hamiltonian given by an instance of
+    :class:`HamiltonianModel`.
+    """
+
+    def __init__(self,
+                 hamiltonian: HamiltonianModel,
+                 y0: Optional[np.ndarray] = None,
+                 t0: Optional[float] = None,
+                 interval: Optional[List[float]] = None,
+                 frame: Optional[Union[str, Operator, np.ndarray, BaseFrame]] = 'auto',
+                 cutoff_freq: Optional[float] = None):
+        """Constructs a BMDE_Problem representing the Schrodinger equation.
+
+        Additionally, 'frame' may be specified in this class either as a
+        standard anti-Hermitian operator :math:`F`, or as a Hermitian
+        operator :math:`H`, in which case it enters the frame :math:`F=-iH`.
+
+        Args:
+            hamiltonian: The Hamiltonian to simulate.
+            y0: Initial state, a unitary. Defaults to the identity matrix
+                of appropriate dimension.
+            t0: Initial time.
+            interval: Time interval.
+            frame: Frame to solve in.
+            cutoff_freq: Cutoff frequency to use when solving.
+        """
+        
+        # if no y0 is set, set it to the identity matrix
+        if y0 is None:
+            y0 = np.eye(generator._operators[0].dim[0], dtype=complex)
+
+        super().__init__(hamiltonian=hamiltonian,
+                         y0=y0,
+                         t0=t0,
+                         interval=interval,
+                         frame=frame,
+                         cutoff_freq=cutoff_freq)
+
 
 class DensityMatrixProblem(BMDE_Problem):
     """Simulate density matrix evolution according to the Lindblad equation:
@@ -305,6 +387,10 @@ class SuperOpProblem(BMDE_Problem):
 
             # turn frame into the vectorized version
             frame = vec_commutator(frame)
+
+        # if y0 is None, set to the identity SuperOp
+        if y0 is None:
+            y0 = np.eye(generator._operators[0].dim**2, dtype=complex)
 
         super().__init__(generator=generator,
                          y0=y0,

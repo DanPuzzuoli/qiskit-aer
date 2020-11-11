@@ -16,7 +16,7 @@ from .signals import VectorSignal, Constant, Signal, BaseSignal
 from qiskit.quantum_info.operators import Operator
 from .frame import Frame
 from .operator_models import OperatorModel
-from ..type_utils import vec_commutator, vec_dissipator
+from ..type_utils import vec_commutator, vec_dissipator, to_array
 
 class HamiltonianModel(OperatorModel):
     """A model of a Hamiltonian, i.e. a time-dependent operator of the form
@@ -226,20 +226,3 @@ class QuantumSystemModel:
 
         return OperatorModel(operators=full_operators,
                              signals=full_signals)
-
-
-def to_array(op: Union[Operator, np.array, List[Operator], List[np.array]]):
-    """Convert an operator, either specified as an `Operator` or an array
-    to an array.
-
-    Args:
-        op: the operator to represent as an array.
-    Returns:
-        np.array: op as an array
-    """
-    if isinstance(op, list):
-        return np.array([to_array(sub_op) for sub_op in op])
-
-    if isinstance(op, Operator):
-        return op.data
-    return op

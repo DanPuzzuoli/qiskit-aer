@@ -31,20 +31,18 @@ class TestLindbladModel(unittest.TestCase):
         # define a basic hamiltonian
         w = 2.
         r = 0.5
-        operators = [2 * np.pi * self.Z / 2,
+        ham_operators = [2 * np.pi * self.Z / 2,
                      2 * np.pi * r * self.X / 2]
-        signals = [Constant(w), Signal(1., w)]
+        ham_signals = [Constant(w), Signal(1., w)]
 
         self.w = w
         self.r = r
-        basic_hamiltonian = HamiltonianModel(operators=operators,
-                                             signals=signals)
 
         noise_operators = np.array([[[0., 0.], [1., 0.]]])
 
-        self.basic_q_model = LindbladModel(hamiltonian=basic_hamiltonian,
-                                           noise_operators=noise_operators)
-        self.basic_lindblad = self.basic_q_model.vectorized_lindblad_generator
+        self.basic_lindblad = LindbladModel(hamiltonian_operators=ham_operators,
+                                            hamiltonian_signals=ham_signals,
+                                            noise_operators=noise_operators)
 
 
     def test_basic_lindblad_lmult(self):
@@ -107,10 +105,9 @@ class TestLindbladModel(unittest.TestCase):
         # construct model
         hamiltonian = HamiltonianModel(operators=rand_ham_ops,
                                        signals=ham_sigs)
-        q_model = LindbladModel(hamiltonian=hamiltonian,
-                                noise_operators=rand_diss,
-                                noise_signals=diss_sigs)
-        lindblad_model = q_model.vectorized_lindblad_generator
+        lindblad_model = LindbladModel.from_hamiltonian(hamiltonian=hamiltonian,
+                                                 noise_operators=rand_diss,
+                                                 noise_signals=diss_sigs)
         lindblad_model.frame = lindblad_frame_op
 
         A = (rng.uniform(low=-b,high=b, size=(dim, dim)) +

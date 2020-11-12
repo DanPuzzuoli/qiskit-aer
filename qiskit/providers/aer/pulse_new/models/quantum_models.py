@@ -114,8 +114,9 @@ class HamiltonianModel(OperatorModel):
                                              operator_in_frame_basis=True,
                                              return_in_frame_basis=in_frame_basis)
 
-class LindbladModel:
-    """A model of a quantum system, consisting of a :class:`HamiltonianModel`
+
+class LindbladModel(OperatorModel):
+    """A model of a quantum system, consisting of a hamiltonian
     and an optional description of dissipative dynamics.
 
     Dissipation terms are understood in terms of the Lindblad master
@@ -140,89 +141,81 @@ class LindbladModel:
     """
 
     def __init__(self,
-                 hamiltonian: HamiltonianModel,
+                 hamiltonian_operators: List[Operator],
+                 hamiltonian_signals: Union[List[BaseSignal], VectorSignal],
                  noise_operators: Optional[List[Operator]] = None,
                  noise_signals: Optional[Union[List[BaseSignal], VectorSignal]] = None):
-        """Initialize. Noise parameters are optional. If `noise_operators`
-        is specified but `noise_signals` is left as `None`, then internally
-        sets the coefficient for each noise operator to `Constant(1.)`.
+        """Initialize.
 
         Args:
-            hamiltonian: the Hamiltonian.
-            noise_operators: list of dissipation operators.
-            noise_signals: list of time-dependent signals for the dissipation
-                           operators.
-        """
-
-        self.hamiltonian = hamiltonian
-
-        self.noise_operators = noise_operators
-
-        if noise_signals is None and noise_operators is not None:
-            noise_signals = [Constant(1.) for _ in noise_operators]
-
-        self.noise_signals = noise_signals
-
-    @property
-    def vectorized_lindblad_generator(self):
-        """Get the :class:`OperatorModel` representing the vectorized Lindblad
-        equation (described in the class doc string), in column-stacking
-        convention.
-
-        In column stacking convention, the map :math:`X \mapsto -i[H(t), X]`
-        is mapped to :math:`-i(id \otimes H(t) - H(t)^T \otimes id)`,
-        and a dissipation term
-        :math:`X \mapsto LXL^\dagger - \frac{1}{2}\{L^\dagger L,X\}` is
-        given as
-        :math:`\overline{L} \otimes L - \frac{1}{2}(id \otimes L^\daggerL + \overline{L^\dagger L} \otimes id)`.
-
-        This function turns every operator in the :class:`HamiltonianModel`
-        into the vectorized version of :math:`-i[H_j, \cdot]`, every
-        operator in `self.noise_operators` into the vectorized dissipator
-        above, and concatenates these lists of operators, as well as the
-        signals corresponding to both, to form a new :class:`OperatorModel`.
-
-        Returns:
-            OperatorModel: corresponding to vectorized Lindblad equation.
+            hamiltonian_operators: list of operators in Hamiltonian
+            hamiltonian_signals: list of signals in the Hamiltonian
+            noise_operators: list of noise operators
+            noise_signals: list of noise signals
         """
 
         # combine operators
-        vec_ham_ops = -1j * vec_commutator(to_array(self.hamiltonian._operators))
+        vec_ham_ops = -1j * vec_commutator(to_array(hamiltonian_operators))
 
         full_operators = None
-        if self.noise_operators is not None:
-            vec_diss_ops = vec_dissipator(to_array(self.noise_operators))
+        if noise_operators is not None:
+            vec_diss_ops = vec_dissipator(to_array(noise_operators))
             full_operators = np.append(vec_ham_ops, vec_diss_ops, axis=0)
         else:
             full_operators = vec_ham_ops
 
         # combine signals
-        # it will take some thought to make this nice but for now I'll just
-        # put it together quickly
-        ham_sigs = self.hamiltonian.signals
+        if isinstance(hamiltonian_signals, list):
+            hamiltonian_signals = VectorSignal.from_signal_list(hamiltonian_signals)
+        elif not isinstance(hamiltonian_signals, VectorSignal):
+            raise Exception("""hamiltonian_signals must either be a list of
+                             Signals, or a VectorSignal.""")
 
         full_signals = None
-        if self.noise_operators is not None:
-            noise_sigs = None
-            if isinstance(self.noise_signals, VectorSignal):
-                noise_sigs = self.noise_signals
-            elif isinstance(self.noise_signals, list):
-                noise_sigs = VectorSignal.from_signal_list(self.noise_signals)
+        if noise_operators is None:
+            full_signals = hamiltonian_signals
+        else:
+            if noise_signals is None:
+                sig_val = np.ones(len(noise_operators), dtype=complex)
+                carrier_freqs = np.zeros(len(noise_operators), dtype=float)
+                noise_signals = VectorSignal(envelope=lambda t: sig_val,
+                                             carrier_freqs=carrier_freqs)
+            elif isinstance(noise_signals, list):
+                noise_signals = VectorSignal.from_signal_list(noise_signals)
+            elif not isinstance(noise_signals, VectorSignal):
+                raise Exception("""noise_signals must either be a list of
+                                 Signals, or a VectorSignal.""")
 
-            full_envelope = lambda t: np.append(ham_sigs.envelope(t),
-                                                noise_sigs.envelope(t))
-            full_carrier_freqs = np.append(ham_sigs.carrier_freqs,
-                                          noise_sigs.carrier_freqs)
 
-            full_drift_array = np.append(ham_sigs.drift_array,
-                                         noise_sigs.drift_array)
+            full_envelope = lambda t: np.append(hamiltonian_signals.envelope(t),
+                                                noise_signals.envelope(t))
+            full_carrier_freqs = np.append(hamiltonian_signals.carrier_freqs,
+                                           noise_signals.carrier_freqs)
+
+            full_drift_array = np.append(hamiltonian_signals.drift_array,
+                                         noise_signals.drift_array)
 
             full_signals = VectorSignal(envelope=full_envelope,
                                         carrier_freqs=full_carrier_freqs,
                                         drift_array=full_drift_array)
-        else:
-            full_signals = ham_sigs
 
+        super().__init__(operators=full_operators,
+                         signals=full_signals)
 
-        return OperatorModel(operators=full_operators,
-                             signals=full_signals)
+    @classmethod
+    def from_hamiltonian(cls,
+                         hamiltonian: HamiltonianModel,
+                         noise_operators: Optional[List[Operator]] = None,
+                         noise_signals: Optional[Union[List[BaseSignal], VectorSignal]] = None):
+        """Construct from a :class:`HamiltonianModel`.
+
+        Args:
+            hamiltonian: the :class:`HamiltonianModel`.
+            noise_operators: list of noise operators.
+            noise_signals: list of noise signals.
+        """
+
+        return cls(hamiltonian_operators=hamiltonian._operators,
+                   hamiltonian_signals=hamiltonian.signals,
+                   noise_operators=noise_operators,
+                   noise_signals=noise_signals)

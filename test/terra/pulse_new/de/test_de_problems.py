@@ -185,8 +185,8 @@ class TestDensityMatrixProblem(unittest.TestCase):
         self.noise_ops =[Operator(np.array([[0., 1.], [0., 0.]])),
                          Operator(np.array([[0., 0.], [1., 0.]]))]
 
-        self.basic_q_model = LindbladModel(hamiltonian=hamiltonian,
-                                           noise_operators=self.noise_ops)
+        self.basic_lindblad_model = LindbladModel.from_hamiltonian(hamiltonian=hamiltonian,
+                                                                   noise_operators=self.noise_ops)
 
         # not a valid density matrix but can be used for testing
         self.y0 = np.array([[1., 2.], [3., 4.]])
@@ -196,7 +196,7 @@ class TestDensityMatrixProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = DensityMatrixProblem(self.basic_q_model,
+        l_prob = DensityMatrixProblem(self.basic_lindblad_model,
                                       self.y0,
                                       t0=0.)
 
@@ -215,7 +215,7 @@ class TestDensityMatrixProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = DensityMatrixProblem(self.basic_q_model,
+        l_prob = DensityMatrixProblem(self.basic_lindblad_model,
                                       self.y0,
                                       t0=0.)
 
@@ -234,13 +234,12 @@ class TestDensityMatrixProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = DensityMatrixProblem(self.basic_q_model,
+        l_prob = DensityMatrixProblem(self.basic_lindblad_model,
                                       self.y0,
                                       t0=0.)
 
         frame_op = l_prob._generator.frame.frame_operator
-        expected = vec_commutator(2 * np.pi * self.w * self.Z.data / 2)
-
+        expected = vec_commutator(-1j * 2 * np.pi * self.w * self.Z.data / 2)
         self.assertAlmostEqual(frame_op, expected)
 
     def test_state_type_converter(self):
@@ -248,7 +247,7 @@ class TestDensityMatrixProblem(unittest.TestCase):
         problem.
         """
 
-        l_prob = DensityMatrixProblem(self.basic_q_model,
+        l_prob = DensityMatrixProblem(self.basic_lindblad_model,
                                       self.y0,
                                       t0=0.)
 
@@ -293,8 +292,8 @@ class TestSuperOpProblem(unittest.TestCase):
         self.noise_ops =[Operator(np.array([[0., 1.], [0., 0.]])),
                          Operator(np.array([[0., 0.], [1., 0.]]))]
 
-        self.basic_q_model = LindbladModel(hamiltonian=hamiltonian,
-                                           noise_operators=self.noise_ops)
+        self.basic_lindblad_model = LindbladModel.from_hamiltonian(hamiltonian=hamiltonian,
+                                                                   noise_operators=self.noise_ops)
 
         # not a valid density matrix but can be used for testing
         self.y0 = np.eye(4, dtype=complex)
@@ -304,7 +303,7 @@ class TestSuperOpProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = SuperOpProblem(self.basic_q_model,
+        l_prob = SuperOpProblem(self.basic_lindblad_model,
                                 self.y0,
                                 t0=0.)
 
@@ -323,7 +322,7 @@ class TestSuperOpProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = SuperOpProblem(self.basic_q_model,
+        l_prob = SuperOpProblem(self.basic_lindblad_model,
                                 self.y0,
                                 t0=0.)
 
@@ -342,12 +341,12 @@ class TestSuperOpProblem(unittest.TestCase):
         Lindblad generator.
         """
 
-        l_prob = SuperOpProblem(self.basic_q_model,
+        l_prob = SuperOpProblem(self.basic_lindblad_model,
                                 self.y0,
                                 t0=0.)
 
         frame_op = l_prob._generator.frame.frame_operator
-        expected = vec_commutator(2 * np.pi * self.w * self.Z.data / 2)
+        expected = vec_commutator(-1j * 2 * np.pi * self.w * self.Z.data / 2)
 
         self.assertAlmostEqual(frame_op, expected)
 

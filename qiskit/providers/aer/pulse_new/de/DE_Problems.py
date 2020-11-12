@@ -267,7 +267,7 @@ class DensityMatrixProblem(BMDE_Problem):
     """
 
     def __init__(self,
-                 q_model: LindbladModel,
+                 lindblad_model: LindbladModel,
                  y0: Optional[np.ndarray] = None,
                  t0: Optional[float] = None,
                  interval: Optional[List[float]] = None,
@@ -290,31 +290,16 @@ class DensityMatrixProblem(BMDE_Problem):
             cutoff_freq: Cutoff frequency to use when solving.
         """
 
-        generator = q_model.vectorized_lindblad_generator
+        generator = lindblad_model.copy()
 
         # handle frame
-        # if frame is in hamiltonian, set the generator frame to the vectorized
-        # version of it
-        if q_model.hamiltonian.frame.frame_operator is not None:
-            generator.frame = vec_commutator(q_model.hamiltonian.frame.frame_operator)
-
-            # if a frame was additionally specified as an argument, warn
-            if frame != 'auto':
-                warn("""A frame was specified in both the LindbladModel
-                        Hamiltonian and in the LindbladProblem.
-                        Defaulting to use the LindbladProblem frame
-                        and return results in that frame.""")
-                # set frame to auto when constructing BMDE problem to silence
-                # further warnings
-                frame = 'auto'
-
-        else:
+        if generator.frame is None:
             # if frame is auto, set it to the drift
             if isinstance(frame, str) and frame == 'auto':
-                frame = q_model.hamiltonian.drift
-
-            # turn frame into the vectorized version
-            frame = vec_commutator(frame)
+                frame = anti_herm_part(generator.drift)
+            else:
+                # turn any user specified frame into the vectorized version
+                frame = vec_commutator(frame)
 
         # specify the converter to vectorize the density matrix
         converter = StateTypeConverter.from_outer_instance_inner_type_spec(outer_y=y0,
@@ -338,7 +323,7 @@ class SuperOpProblem(BMDE_Problem):
     """
 
     def __init__(self,
-                 q_model: LindbladModel,
+                 lindblad_model: LindbladModel,
                  y0: Optional[np.ndarray] = None,
                  t0: Optional[float] = None,
                  interval: Optional[List[float]] = None,
@@ -362,31 +347,16 @@ class SuperOpProblem(BMDE_Problem):
             cutoff_freq: Cutoff frequency to use when solving.
         """
 
-        generator = q_model.vectorized_lindblad_generator
+        generator = lindblad_model.copy()
 
         # handle frame
-        # if frame is in hamiltonian, set the generator frame to the vectorized
-        # version of it
-        if q_model.hamiltonian.frame.frame_operator is not None:
-            generator.frame = vec_commutator(q_model.hamiltonian.frame.frame_operator)
-
-            # if a frame was additionally specified as an argument, warn
-            if frame != 'auto':
-                warn("""A frame was specified in both the LindbladModel
-                        Hamiltonian and in the LindbladProblem.
-                        Defaulting to use the LindbladProblem frame
-                        and return results in that frame.""")
-                # set frame to auto when constructing BMDE problem to silence
-                # further warnings
-                frame = 'auto'
-
-        else:
+        if generator.frame is None:
             # if frame is auto, set it to the drift
             if isinstance(frame, str) and frame == 'auto':
-                frame = q_model.hamiltonian.drift
-
-            # turn frame into the vectorized version
-            frame = vec_commutator(frame)
+                frame = anti_herm_part(generator.drift)
+            else:
+                # turn any user specified frame into the vectorized version
+                frame = vec_commutator(frame)
 
         # if y0 is None, set to the identity SuperOp
         if y0 is None:

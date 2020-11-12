@@ -18,7 +18,7 @@ from warnings import warn
 
 from qiskit.quantum_info.operators import Operator
 from qiskit.providers.aer.pulse_new.models.frame import BaseFrame
-from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, QuantumSystemModel
+from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, LindbladModel
 from qiskit.providers.aer.pulse_new.models.operator_models import BaseOperatorModel, OperatorModel
 from qiskit.providers.aer.pulse_new.type_utils import (StateTypeConverter,
                                                        vec_commutator)
@@ -240,7 +240,7 @@ class UnitaryProblem(SchrodingerProblem):
             frame: Frame to solve in.
             cutoff_freq: Cutoff frequency to use when solving.
         """
-        
+
         # if no y0 is set, set it to the identity matrix
         if y0 is None:
             y0 = np.eye(generator._operators[0].dim[0], dtype=complex)
@@ -263,11 +263,11 @@ class DensityMatrixProblem(BMDE_Problem):
         - :math:`H(t)` is the Hamiltonian,
         - :math:`L_j` are the noise operators, or dissipators, and
         - :math:`\gamma_j(t)` are the time-dependent dissipator coefficients,
-    specified in terms of a :class:`QuantumSystemModel` object.
+    specified in terms of a :class:`LindbladModel` object.
     """
 
     def __init__(self,
-                 q_model: QuantumSystemModel,
+                 q_model: LindbladModel,
                  y0: Optional[np.ndarray] = None,
                  t0: Optional[float] = None,
                  interval: Optional[List[float]] = None,
@@ -281,7 +281,7 @@ class DensityMatrixProblem(BMDE_Problem):
         operator :math:`H`, in which case it enters the frame :math:`F=-iH`.
 
         Args:
-            hamiltonian: The Hamiltonian to simulate.
+            lindblad_model: The Lindblad model to simulate
             y0: Initial state, intended to be a density matrix.
             t0: Initial time.
             interval: Time interval.
@@ -300,7 +300,7 @@ class DensityMatrixProblem(BMDE_Problem):
 
             # if a frame was additionally specified as an argument, warn
             if frame != 'auto':
-                warn("""A frame was specified in both the QuantumSystemModel
+                warn("""A frame was specified in both the LindbladModel
                         Hamiltonian and in the LindbladProblem.
                         Defaulting to use the LindbladProblem frame
                         and return results in that frame.""")
@@ -338,7 +338,7 @@ class SuperOpProblem(BMDE_Problem):
     """
 
     def __init__(self,
-                 q_model: QuantumSystemModel,
+                 q_model: LindbladModel,
                  y0: Optional[np.ndarray] = None,
                  t0: Optional[float] = None,
                  interval: Optional[List[float]] = None,
@@ -352,7 +352,7 @@ class SuperOpProblem(BMDE_Problem):
         operator :math:`H`, in which case it enters the frame :math:`F=-iH`.
 
         Args:
-            hamiltonian: The Hamiltonian to simulate.
+            lindblad_model: The Lindblad model to simulate
             y0: Initial state, intended to be the super operator representation
                 of a quantum channel.
             t0: Initial time.
@@ -372,7 +372,7 @@ class SuperOpProblem(BMDE_Problem):
 
             # if a frame was additionally specified as an argument, warn
             if frame != 'auto':
-                warn("""A frame was specified in both the QuantumSystemModel
+                warn("""A frame was specified in both the LindbladModel
                         Hamiltonian and in the LindbladProblem.
                         Defaulting to use the LindbladProblem frame
                         and return results in that frame.""")

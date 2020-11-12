@@ -9,18 +9,18 @@
 # Any modifications or derivative works of this code must retain this
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
-"""tests for quantum_models.QuantumSystemModel"""
+"""tests for quantum_models.LindbladModel"""
 
 import unittest
 import numpy as np
 from scipy.linalg import expm
 from qiskit.quantum_info.operators import Operator
-from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, QuantumSystemModel
+from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, LindbladModel
 from qiskit.providers.aer.pulse_new.models.signals import Constant, Signal, VectorSignal
 
 
-class TestQuantumSystemModel(unittest.TestCase):
-    """Tests for QuantumSystemModel.
+class TestLindbladModel(unittest.TestCase):
+    """Tests for LindbladModel.
     """
 
     def setUp(self):
@@ -42,8 +42,8 @@ class TestQuantumSystemModel(unittest.TestCase):
 
         noise_operators = np.array([[[0., 0.], [1., 0.]]])
 
-        self.basic_q_model = QuantumSystemModel(hamiltonian=basic_hamiltonian,
-                                                noise_operators=noise_operators)
+        self.basic_q_model = LindbladModel(hamiltonian=basic_hamiltonian,
+                                           noise_operators=noise_operators)
         self.basic_lindblad = self.basic_q_model.vectorized_lindblad_generator
 
 
@@ -107,9 +107,9 @@ class TestQuantumSystemModel(unittest.TestCase):
         # construct model
         hamiltonian = HamiltonianModel(operators=rand_ham_ops,
                                        signals=ham_sigs)
-        q_model = QuantumSystemModel(hamiltonian=hamiltonian,
-                                     noise_operators=rand_diss,
-                                     noise_signals=diss_sigs)
+        q_model = LindbladModel(hamiltonian=hamiltonian,
+                                noise_operators=rand_diss,
+                                noise_signals=diss_sigs)
         lindblad_model = q_model.vectorized_lindblad_generator
         lindblad_model.frame = lindblad_frame_op
 
@@ -128,7 +128,7 @@ class TestQuantumSystemModel(unittest.TestCase):
                                                diss_coeffs,
                                                frame_op,
                                                t)
-                                               
+
         self.assertAlmostEqual(expected, value.reshape(dim,dim, order='F'))
 
     def _evaluate_lindblad_rhs(self, A, ham,

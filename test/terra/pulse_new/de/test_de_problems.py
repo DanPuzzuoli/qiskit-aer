@@ -18,7 +18,7 @@ import numpy as np
 from qiskit.quantum_info.operators import Operator
 from qiskit.providers.aer.pulse_new.models.signals import Constant, Signal
 from qiskit.providers.aer.pulse_new.models.operator_models import OperatorModel
-from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, QuantumSystemModel
+from qiskit.providers.aer.pulse_new.models.quantum_models import HamiltonianModel, LindbladModel
 from qiskit.providers.aer.pulse_new.de.DE_Problems import (BMDE_Problem,
                                                            SchrodingerProblem,
                                                            DensityMatrixProblem,
@@ -185,8 +185,8 @@ class TestDensityMatrixProblem(unittest.TestCase):
         self.noise_ops =[Operator(np.array([[0., 1.], [0., 0.]])),
                          Operator(np.array([[0., 0.], [1., 0.]]))]
 
-        self.basic_q_model = QuantumSystemModel(hamiltonian=hamiltonian,
-                                                noise_operators=self.noise_ops)
+        self.basic_q_model = LindbladModel(hamiltonian=hamiltonian,
+                                           noise_operators=self.noise_ops)
 
         # not a valid density matrix but can be used for testing
         self.y0 = np.array([[1., 2.], [3., 4.]])
@@ -293,8 +293,8 @@ class TestSuperOpProblem(unittest.TestCase):
         self.noise_ops =[Operator(np.array([[0., 1.], [0., 0.]])),
                          Operator(np.array([[0., 0.], [1., 0.]]))]
 
-        self.basic_q_model = QuantumSystemModel(hamiltonian=hamiltonian,
-                                                noise_operators=self.noise_ops)
+        self.basic_q_model = LindbladModel(hamiltonian=hamiltonian,
+                                           noise_operators=self.noise_ops)
 
         # not a valid density matrix but can be used for testing
         self.y0 = np.eye(4, dtype=complex)

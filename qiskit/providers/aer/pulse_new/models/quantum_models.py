@@ -114,7 +114,7 @@ class HamiltonianModel(OperatorModel):
                                              operator_in_frame_basis=True,
                                              return_in_frame_basis=in_frame_basis)
 
-class QuantumSystemModel:
+class LindbladModel:
     """A model of a quantum system, consisting of a :class:`HamiltonianModel`
     and an optional description of dissipative dynamics.
 

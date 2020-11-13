@@ -68,8 +68,8 @@ class HamiltonianModel(OperatorModel):
             if isinstance(operator, Operator):
                 operator = operator.data
 
-            if jnp.linalg.norm((operator.conj().transpose()
-                                - operator).data) > 1e-10:
+            if jnp.linalg.norm(operator.conj().transpose()
+                                - operator) > 1e-10:
                 raise Exception("""HamiltonianModel only accepts Hermitian
                                     operators.""")
 

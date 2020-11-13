@@ -25,6 +25,8 @@ import warnings
 import numpy as np
 import jax.numpy as jnp
 from jax.experimental.ode import odeint
+from jax.scipy.linalg import expm as jexpm
+from jax.lax import scan
 from scipy.integrate import ode, solve_ivp
 from scipy.integrate._ode import zvode
 from scipy.linalg import expm
@@ -531,6 +533,30 @@ class JaxODE(ODE_Method):
         # don't think we need to do anything here
         self.options = options
 
+class JaxExpm(BMDE_Method):
+    """
+    Method using lax scan instead of loops
+    """
+    method_spec = {'inner_state_spec': {'type': 'array'}}
+
+    def integrate(self, tf):
+        delta_t = tf - self.t
+        steps = np.array((delta_t // self._max_dt)).astype(int)
+        h = delta_t / steps
+        generator = self.rhs.get('generator')
+
+        def scan_func(carry, step):
+            eval_time = self.t + (h * step) + h/2
+            return (jexpm(generator(eval_time) * h) @ carry, None)
+
+        self._y = scan(scan_func, self._y, jnp.arange(steps))[0]
+        self._t = tf
+
+    def set_options(self, options):
+        """Only option is max step size
+        """
+        self._max_dt = options.max_dt
+
 def method_from_string(method_str):
     """Returns an ODE_Method specified by a string.
 
@@ -551,6 +577,7 @@ def method_from_string(method_str):
                    'scipy': ScipyODE,
                    'zvode': QiskitZVODE,
                    'Expm': Expm,
-                   'jaxode': JaxODE}
+                   'jaxode': JaxODE,
+                   'jaxexpm': JaxExpm}
 
     return method_dict.get(method_str)

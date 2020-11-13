@@ -16,7 +16,9 @@ from abc import ABC, abstractmethod
 from typing import Callable, Union, List
 from .signals import BaseSignal, Signal, PiecewiseConstant
 
-from numpy import convolve, array
+from jax.numpy import convolve, array
+import jax.numpy as jnp
+
 
 
 class BaseTransferFunction(ABC):
@@ -48,13 +50,14 @@ class Convolution(BaseTransferFunction):
     The implementation is quadratic in the number of samples in the signal.
     """
 
-    def __init__(self, func: Callable):
+    def __init__(self, conv_samples):
         """
         Args:
             func: The convolution function specified in time. This function will be normalized
                   to one before doing the convolution. To scale signals multiply them by a float.
         """
-        self._func = func
+        #self._func = func
+        self._conv_samples = conv_samples / sum(conv_samples)
 
     def apply(self, signal: Union[Signal, List[Signal]]) -> Union[BaseSignal, List[BaseSignal]]:
         """
@@ -90,15 +93,13 @@ class Convolution(BaseTransferFunction):
             signal: The transformed signal.
         """
         if isinstance(signal, PiecewiseConstant):
-            # Perform a discrete time convolution.
-            dt = signal.dt
-            func_samples = array([self._func(dt*i) for i in range(signal.duration)])
-            func_samples = func_samples / sum(func_samples)
-            sig_samples = [signal.value(dt*i) for i in range(signal.duration)]
 
-            convoluted_samples = convolve(func_samples, sig_samples)
+            sig_samples = signal._samples
 
-            return PiecewiseConstant(dt, convoluted_samples, carrier_freq=0.)
+            convoluted_re_samples = convolve(self._conv_samples, sig_samples.real)
+            convoluted_im_samples = convolve(self._conv_samples, sig_samples.imag)
+
+            return PiecewiseConstant(signal.dt, samples=convoluted_re_samples + 1j * convoluted_im_samples, carrier_freq=signal.carrier_freq)
 
 
 class FFTConvolution(BaseTransferFunction):

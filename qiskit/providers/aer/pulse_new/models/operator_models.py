@@ -14,6 +14,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Union, List, Optional
 import numpy as np
 import jax.numpy as jnp
+from jax.lax import cond
 from copy import deepcopy
 
 from .signals import VectorSignal, BaseSignal

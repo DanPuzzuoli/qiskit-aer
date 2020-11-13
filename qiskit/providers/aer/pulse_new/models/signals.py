@@ -59,8 +59,8 @@ class BaseSignal(ABC):
         for x in x_vals:
             sig_vals.append(self.value(x))
 
-        plt.plot(x_vals, jnp.real(sig_vals))
-        plt.plot(x_vals, jnp.imag(sig_vals))
+        plt.plot(x_vals, jnp.real(jnp.array(sig_vals)))
+        plt.plot(x_vals, jnp.imag(jnp.array(sig_vals)))
 
     def plot_envelope(self, t0: float, tf: float, n: int):
         x_vals = jnp.linspace(t0, tf, n)
@@ -69,8 +69,8 @@ class BaseSignal(ABC):
         for x in x_vals:
             sig_vals.append(self.envelope_value(x))
 
-        plt.plot(x_vals, jnp.real(sig_vals))
-        plt.plot(x_vals, jnp.imag(sig_vals))
+        plt.plot(x_vals, jnp.real(jnp.array(sig_vals)))
+        plt.plot(x_vals, jnp.imag(jnp.array(sig_vals)))
 
 
 class Signal(BaseSignal):
@@ -149,7 +149,7 @@ class PiecewiseConstant(BaseSignal):
         self._dt = dt
 
         if samples is not None:
-            self._samples = [_ for _ in samples]
+            self._samples = jnp.array([_ for _ in samples])
         else:
             self._samples = [0.] * duration
 

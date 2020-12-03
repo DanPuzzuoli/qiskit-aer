@@ -37,9 +37,9 @@ def _full_simulation(exp, y0, pulse_sim_desc, pulse_de_model, solver_options=Non
     """
 
     solver_options = PulseSimOptions() if solver_options is None else solver_options
-
+    start = time.time()
     psi, ode_t = unitary_evolution(exp, y0, pulse_de_model, solver_options)
-
+    print(time.time() - start)
     # ###############
     # do measurement
     # ###############
